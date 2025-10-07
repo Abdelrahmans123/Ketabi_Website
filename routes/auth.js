@@ -1,6 +1,7 @@
 import express from "express";
 import {
 	confirmEmail,
+	confirmLogin,
 	forgotPassword,
 	login,
 	logout,
@@ -21,6 +22,7 @@ const router = express.Router();
 router.post("/register", validate(registerSchema), register);
 router.post("/confirm-email", validate(confirmEmailSchema), confirmEmail);
 router.post("/login", validate(loginSchema), login);
+router.post("/confirm-login", validate(confirmEmailSchema), confirmLogin);
 router.post("/forgot-password", validate(forgotPasswordSchema), forgotPassword);
 router.post("/reset-password", validate(resetPasswordSchema), resetPassword);
 router.post("/logout", authenticate, logout	);
