@@ -1,31 +1,30 @@
 import express from "express";
-import notFound from "./middlewares/notFound.js";
+import dotenv from "dotenv";
+import authRoutes from "./routes/auth.js";
+import { connectMongoDB, connectRedis } from "./config/db.js";
+import HTTPStatusText from "./utils/HTTPStatusText.js";
 import errorHandler from "./middlewares/errorHandler.js";
-import path from "path";
-import mongoose from "mongoose";
-const app = express();
-const url = process.env.MONGODB_URL;
+dotenv.config();
+const bootstrap = async () => {
+	const app = express();
+	const PORT = process.env.PORT || 3000;
+	await connectMongoDB();
+	await connectRedis();
+	app.use(express.json());
+	app.use("/api/auth", authRoutes);
+	app.all("/{*dummy}", (req, res, next) => {
+		res.status(404).json({
+			message: "Route Not Found",
+			status: HTTPStatusText.FAILURE,
+			data: null,
+			code: 404,
+		});
+	});
+	app.use(errorHandler);
 
-mongoose
-  .connect(url)
-  .then(() => {
-    console.log("Connected to MongoDB");
-  })
-  .catch((err) => {
-    console.log("Error connecting to MongoDB", err);
-  });
+	app.listen(PORT, () => {
+		console.log(`Server is running on port ${PORT}`);
+	});
+};
 
-// Middleware to parse JSON request bodies
-app.use(express.json());
-
-/********          Routes middleware           ********/
-
-///////////////////////////////////////////////////////////////////////////////////////////////
-
-// Not Found
-app.use(notFound);
-
-// Error Handler
-app.use(errorHandler);
-
-export default app;
+export default bootstrap;
