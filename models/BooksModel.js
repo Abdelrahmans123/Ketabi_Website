@@ -15,6 +15,16 @@ const BookSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+         Edition: {
+            type: String,
+            required: true,
+        },
+         categoryName: {
+            type: String,
+            required: true,
+            trim: true,
+        },
+       
         price: {
             type: Number,
             required: true,
@@ -45,6 +55,11 @@ const BookSchema = new mongoose.Schema(
             enum: ["in stock", "out of stock", "removed"],
             default: "in stock"
         },
+          categoryRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Genre",
+      required: false,
+    }
     },
     { timestamps: true }
 );

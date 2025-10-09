@@ -10,7 +10,7 @@ const bootstrap = async () => {
 	const app = express();
 	const PORT = process.env.PORT || 3000;
 	await connectMongoDB();
-	await connectRedis();
+	//await connectRedis();
 	app.use(express.json());
 		app.use("/books",books);
 
