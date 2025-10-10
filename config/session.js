@@ -1,3 +1,5 @@
+import dotenv from "dotenv";
+dotenv.config();
 import session from "express-session";
 import { RedisStore } from "connect-redis";
 import { redisClient } from "./db.js";
@@ -20,4 +22,5 @@ const sessionConfig = {
     },
 };
 const appSession = session(sessionConfig);
+
 export default appSession;
