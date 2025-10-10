@@ -5,12 +5,10 @@ const createSessionMiddleware = () => {
     if (!process.env.SESSION_SECRET) {
         throw new Error("❌ SESSION_SECRET is required in .env file!");
     }
-
     const redisStore = new RedisStore({
         client: redisClient,
         prefix: "myapp:",
     });
-
     const sessionConfig = {
         store: redisStore,
         secret: process.env.SESSION_SECRET,

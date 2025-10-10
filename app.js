@@ -5,6 +5,7 @@ import { connectMongoDB, connectRedisDB } from "./config/db.js";
 import HTTPStatusText from "./utils/HTTPStatusText.js";
 import errorHandler from "./middlewares/errorHandler.js";
 import createSessionMiddleware from "./config/session.js";
+import { morganLogger } from "./middlewares/morgan.js"
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
@@ -12,6 +13,7 @@ const bootstrap = async () => {
     await connectRedisDB();
     app.use(createSessionMiddleware());
     app.use(express.json());
+    app.use(morganLogger);
     app.use("/api/auth", authRoutes);
     app.use("/api/genres", genreRoutes);
     app.all("/{*dummy}", (req, res, next) => {
