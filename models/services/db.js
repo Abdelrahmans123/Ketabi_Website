@@ -22,6 +22,15 @@ export const findById = async (model, id, filter) => {
         throw error;
     }
 };
+export const findBySlug = async (model, slug, filter) => {
+    try {
+        return await model.findOne({ slug }, filter);
+    } catch (error) {
+        console.error("Error finding document by slug:", error);
+        throw error;
+    }
+};
+
 export const create = async (model, data) => {
     try {
         const newDocument = model.create(data);
@@ -64,6 +73,19 @@ export const findByIdAndUpdate = async (model, id, data) => {
         throw error;
     }
 };
+
+export const findBySlugAndUpdate = async (model, slug, data) => {
+    try {
+        const updatedDocument = await model.findOneAndUpdate({ slug }, data, {
+            new: true,
+        });
+        return updatedDocument;
+    } catch (error) {
+        console.error("Error updating document by slug:", error);
+        throw error;
+    }
+};
+
 export const remove = async (model, query) => {
     try {
         const deletedDocument = await model.findOneAndDelete(query);
@@ -73,3 +95,11 @@ export const remove = async (model, query) => {
         throw error;
     }
 };
+export const findBySlugAndDelete = async (model, slug) => {
+    try {
+        const deletedDocument = await model.findOneAndDelete({ slug });
+        return deletedDocument;
+    } catch (error) {
+        console.error("Error deleting document by slug:", error);
+        throw error;
+    } };
