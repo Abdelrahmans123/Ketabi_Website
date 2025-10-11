@@ -45,7 +45,6 @@ export const register = asyncHandler(async (req, res, next) => {
         text: `Your OTP is ${otp}. Please use it to confirm your email.`,
     });
     req.session.userId = newUser._id;
-    console.log("Session after registration:", req.session);
     return successResponse({
         res,
         statusCode: 201,
@@ -139,8 +138,7 @@ export const login = asyncHandler(async (req, res, next) => {
         subject: "Your Login OTP",
         text: `Your OTP is ${otp}. Please use it to complete your login.`,
     });
-    req.session.userId = user._id; // Store user ID in session
-    console.log("Session after login:", req.session);
+    req.session.userId = user._id;
     return successResponse({
         res,
         statusCode: 200,
@@ -149,7 +147,6 @@ export const login = asyncHandler(async (req, res, next) => {
 });
 
 export const confirmLogin = asyncHandler(async (req, res, next) => {
-    console.log("Session:", req.session);
     const userId = req.session.userId;
     if (!userId) {
         const error = AppError.create(

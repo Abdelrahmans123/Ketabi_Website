@@ -1,6 +1,7 @@
 import express from "express";
 import authRoutes from "./routes/auth.js";
 import genreRoutes from "./routes/genre.js";
+import bookRouter from "./routes/book.js";
 import { connectMongoDB, connectRedisDB } from "./config/db.js";
 import HTTPStatusText from "./utils/HTTPStatusText.js";
 import errorHandler from "./middlewares/errorHandler.js";
@@ -16,6 +17,7 @@ const bootstrap = async () => {
     app.use(morganLogger);
     app.use("/api/auth", authRoutes);
     app.use("/api/genres", genreRoutes);
+    app.use("/api/books", bookRouter);
     app.all("/{*dummy}", (req, res, next) => {
         res.status(404).json({
             message: "Route Not Found",

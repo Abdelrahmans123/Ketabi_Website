@@ -1,10 +1,10 @@
-import AppError from "../utils/AppError";
+import AppError from "../utils/AppError.js";
 
 export const authorize = (...roles) => {
-	return (req, res, next) => {
-		if (!req.user || !roles.includes(req.user.role)) {
-			return next(AppError.create("Forbidden", 403));
-		}
-		next();
-	};
+    return (req, res, next) => {
+        if (!req.user || !roles.includes(req.user.role)) {
+            return next(AppError.create("Forbidden", 403));
+        }
+        next();
+    };
 };
