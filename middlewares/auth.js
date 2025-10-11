@@ -14,33 +14,31 @@ export const authenticate = asyncHandler(async (req, res, next) => {
     const decoded = verifyJWT(token);
     const tokenData = await redisClient.hGetAll(`token:${decoded.jti}`);
     if (Object.keys(tokenData).length === 0) {
-        return next(
-            new AppError.create("Session expired, please login again", 401)
-        );
+        const error = AppError.create("Token not found", 401);
+        return next(error);
     }
     const user = await User.findById(decoded.id);
-    if (user.changeCredentialTime?.getTime() > decoded.iat * 1000) {
-        return next(
-            new AppError.create("Session expired, please login again", 401)
-        );
+    if (user?.changeCredentialTime?.getTime() > decoded.iat * 1000) {
+        const error = AppError.create("Token expired", 401);
+        return next(error);
     }
     if (!user || user.status !== "active") {
-        return next(new AppError.create("User not found or inactive", 401));
+        const error = AppError.create("User not found or inactive", 401);
+        return next(error);
     }
     if (user.isTwoFactorEnabled && !user.isTwoFactorAuthenticated) {
-        return next(
-            new AppError.create("Two factor authentication required", 401)
+        const error = AppError.create(
+            "Two factor authentication required",
+            401
         );
-    }
-    if (user.role !== tokenData.role) {
-        return next(
-            new AppError.create("Role changed, please login again", 401)
-        );
+        return next(error);
     }
     if (user.isEmailConfirmed === false) {
-        return next(
-            new AppError.create("Please confirm your email to proceed", 401)
+        const error = AppError.create(
+            "Please confirm your email to proceed",
+            401
         );
+        return next(error);
     }
     req.user = user;
     next();
