@@ -15,16 +15,16 @@ const BookSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
-         Edition: {
+        Edition: {
             type: String,
             required: true,
         },
-         categoryName: {
+        categoryName: {
             type: String,
             required: true,
             trim: true,
         },
-       
+
         price: {
             type: Number,
             required: true,
@@ -39,35 +39,33 @@ const BookSchema = new mongoose.Schema(
         stock: {
             type: Number,
         },
-        
+
         noOfPages: {
             type: Number,
             required: true,
         },
-        
+
         image: {
-          url: String,
+            url: String,
         },
 
- 
         status: {
             type: String,
             enum: ["in stock", "out of stock", "removed"],
-            default: "in stock"
+            default: "in stock",
         },
-          categoryRef: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Genre",
-      required: false,
-    }
+        categoryRef: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Genre",
+            required: false,
+        },
     },
     { timestamps: true }
 );
 
 BookSchema.virtual("finalPrice").get(function () {
-  return this.price - (this.price * (this.discount || 0)) / 100;
+    return this.price - (this.price * (this.discount || 0)) / 100;
 });
-
 
 const Book = mongoose.model("Book", BookSchema);
 export default Book;

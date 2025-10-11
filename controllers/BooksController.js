@@ -1,87 +1,75 @@
-import Book from '../models/BooksModel.js'
+import Book from "../models/Book.js";
+import { create, findAll, findById, remove } from "../models/services/db.js";
 import AppError from "../utils/AppError.js";
+import asyncHandler from "../utils/asyncHandler.js";
+import { successResponse } from "../utils/successResponse.js";
 
-export const  AddBook= async(req,res)=>{
-try{
-    const newbook =await Book.create(req.body);
-    res.status(201).json(newbook);
-}
-catch(err){
-        res.status(400).json({ message: err.message });
-}
+export const AddBook = asyncHandler(async (req, res, next) => {
+    const book = await create(Book, req.body);
+    return successResponse({
+        res,
+        statusCode: 201,
+        message: "Book Added Successfully",
+        data: book,
+    });
+});
 
-
-};
-
-export const  getBooks= async(req,res)=>{
-try{
-    const books =await Book.find();
-    res.status(201).json(books);
-}
-catch(err){
-        res.status(400).json({ message: err.message });
-}
-
-
-};
-
-
-
-
-
-export const getBookByID=async(req,res)=>{
-    try{
-        
-        const book=await Book.findById(req.params.id)
-        if(!book){
-            return res.status(400).json({message:"Book Not Found"});
-        }
-        res.status(200).json(book);
-
+export const getBooks = asyncHandler(async (req, res, next) => {
+    const books = await findAll(Book);
+    if (books.length === 0) {
+        const error = AppError.create("No Books Found", 404);
+        return next(error);
     }
-    catch(err){
-                res.status(400).json({ message: err.message });
+    return successResponse({
+        res,
+        statusCode: 200,
+        message: "Books Retrieved Successfully",
+        data: books,
+    });
+});
 
+export const getBookByID = asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
+    const book = await findById(Book, id);
+    if (!book) {
+        const error = AppError.create("Book Not Found", 404);
+        return next(error);
     }
-}
-
-
-
-export const updateBook=async(req,res)=>{
-    try{
-            const { id } = req.params;
-        const ubook=await Book.updateOne({_id:id},req.body,{new:true,runValidators:true});
-        if(!ubook){
-            return res.status(400).json({message:"Book Not Found"});
-        }
-        
-
-        res.status(200).json(ubook);
-
+    return successResponse({
+        res,
+        statusCode: 200,
+        message: "Book Retrieved Successfully",
+        data: book,
+    });
+});
+export const updateBook = asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
+    const updatedBook = await findByIdAndUpdate(Book, id, req.body, {
+        new: true,
+    });
+    if (!updatedBook) {
+        const error = AppError.create("Book Not Found", 404);
+        return next(error);
     }
-    catch(err){
-                res.status(400).json({ message: err.message });
+    return successResponse({
+        res,
+        statusCode: 200,
+        message: "Book Updated Successfully",
+        data: updatedBook,
+    });
+});
 
+export const deleteBook = asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
+    const deletedBook = await remove(Book, { _id: id });
+    if (!deletedBook) {
+        const error = AppError.create("Book Not Found", 404);
+        return next(error);
     }
-}
-
-
-export const deleteBook=async(req,res)=>{
-    try{
-            const { id } = req.params;
-        const dbook=await Book.deleteOne({_id:id});
-        if(!dbook.deletedCount==0){
-            return res.status(400).json({message:"Book Not Found"});
-        }
-        
-
-        res.status(200).json({message:"Book deleted Successfully"});
-
-    }
-    catch(err){
-                res.status(400).json({ message: err.message });
-
-    }
-}
-
-
+    return successResponse({
+        res,
+        statusCode: 200,
+        message: "Book Deleted Successfully",
+        data: deletedBook,
+    });
+});
