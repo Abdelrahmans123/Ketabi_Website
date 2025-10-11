@@ -6,7 +6,7 @@ import { connectMongoDB, connectRedisDB } from "./config/db.js";
 import HTTPStatusText from "./utils/HTTPStatusText.js";
 import errorHandler from "./middlewares/errorHandler.js";
 import createSessionMiddleware from "./config/session.js";
-import { morganLogger } from "./middlewares/morgan.js";
+import { morganLogger } from "./middlewares/morgan.js"
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
