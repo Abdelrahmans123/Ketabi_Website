@@ -1,20 +1,17 @@
-import { validationResult } from "express-validator";
 import AppError from "../utils/AppError.js";
 
-export const validate = (rules) => {
-	return [
-		...rules,
-		(req, res, next) => {
-			const errors = validationResult(req);
-			if (!errors.isEmpty()) {
-				let extractedErrors = [];
-				errors.array().map((err) => {
-					return extractedErrors.push({ [err.path]: err.msg });
-				});
-				const error = AppError.create(extractedErrors, 400);
-				return next(error);
-			}
-			next();
-		},
-	];
+export const validate = (schema) => {
+    return (req, res, next) => {
+        const { error } = schema.validate(req.body, { abortEarly: false });
+
+        if (error) {
+            const extractedErrors = error.details.map((err) => ({
+                [err.path.join(".")]: err.message,
+            }));
+
+            const appError = AppError.create(extractedErrors, 400);
+            return next(appError);
+        }
+        next();
+    };
 };

@@ -1,95 +1,87 @@
-import { body } from "express-validator";
+import Joi from "joi";
 
-export const registerSchema = [
-	body("name")
-		.notEmpty()
-		.withMessage("Name is Required")
-		.isLength({ min: 2 })
-		.withMessage("Name must be at least 3 characters"),
-	body("email")
-		.notEmpty()
-		.withMessage("Email is Required")
-		.isEmail()
-		.withMessage("Email is not valid"),
-	body("password")
-		.notEmpty()
-		.withMessage("Password is Required")
-		.isLength({ min: 8 })
-		.withMessage("Password must be at least 8 characters"),
-	body("confirmPassword")
-		.notEmpty()
-		.withMessage("Confirm Password is Required")
-		.isLength({ min: 8 })
-		.withMessage("Confirm Password must be at least 8 characters"),
-	body("phone")
-		.notEmpty()
-		.withMessage("Phone number is Required")
-		.isLength({ min: 10, max: 15 })
-		.withMessage("Phone number must be between 10 and 15 characters"),
-	body("address").notEmpty().withMessage("Address is Required"),
-	body("role")
-		.optional()
-		.isIn(["user", "admin"])
-		.withMessage("Role must be either 'user' or 'admin'"),
-	body("gender")
-		.optional()
-		.isIn(["male", "female"])
-		.withMessage("Gender must be either 'male' or 'female'"),
-	body("status")
-		.optional()
-		.isIn(["active", "inactive", "banned"])
-		.withMessage("Status must be either 'active', 'inactive' or 'banned'"),
-];
-export const loginSchema = [
-	body("email")
-		.notEmpty()
-		.withMessage("Email is Required")
-		.isEmail()
-		.withMessage("Email is not valid"),
-	body("password")
-		.notEmpty()
-		.withMessage("Password is Required")
-		.isLength({ min: 8 })
-		.withMessage("Password must be at least 8 characters"),
-];
-export const confirmEmailSchema = [
-	body("email")
-		.notEmpty()
-		.withMessage("Email is Required")
-		.isEmail()
-		.withMessage("Email is not valid"),
-	body("otp")
-		.notEmpty()
-		.withMessage("OTP is Required")
-		.isLength({ min: 6, max: 6 })
-		.withMessage("OTP must be 6 characters"),
-];
-export const forgotPasswordSchema = [
-	body("email")
-		.notEmpty()
-		.withMessage("Email is Required")
-		.isEmail()
-		.withMessage("Email is not valid"),
-];
-export const resetPasswordSchema = [
-	body("email")
-		.notEmpty()
-		.withMessage("Email is Required")
-		.isEmail()
-		.withMessage("Email is not valid"),
-	body("otp")
-		.notEmpty()
-		.withMessage("OTP is Required")
-		.isLength({ min: 6, max: 6 })
-		.withMessage("OTP must be 6 characters"),
-	body("newPassword")
-		.notEmpty()
-		.withMessage("New Password is Required")
-		.isLength({ min: 8 })
-		.withMessage("New Password must be at least 8 characters"),
-	body("confirmPassword")
-		.notEmpty()
-		.withMessage("Confirm Password is Required")
-		.isLength({ min: 8 })
-		.withMessage("Confirm Password must be at least 8 characters"),
-];
+export const registerSchema = Joi.object({
+    name: Joi.string().min(2).required().messages({
+        "string.empty": "Name is Required",
+        "string.min": "Name must be at least 3 characters",
+    }),
+
+    email: Joi.string().email().required().messages({
+        "string.empty": "Email is Required",
+        "string.email": "Email is not valid",
+    }),
+
+    password: Joi.string().min(8).required().messages({
+        "string.empty": "Password is Required",
+        "string.min": "Password must be at least 8 characters",
+    }),
+
+    confirmPassword: Joi.string()
+        .min(8)
+        .required()
+        .valid(Joi.ref("password"))
+        .messages({
+            "string.empty": "Confirm Password is Required",
+            "string.min": "Confirm Password must be at least 8 characters",
+            "any.only": "Passwords do not match",
+        }),
+
+    phone: Joi.string().min(10).max(15).required().messages({
+        "string.empty": "Phone number is Required",
+        "string.min": "Phone number must be between 10 and 15 characters",
+        "string.max": "Phone number must be between 10 and 15 characters",
+    }),
+
+    address: Joi.string().required().messages({
+        "string.empty": "Address is Required",
+    }),
+
+    role: Joi.string().valid("user", "admin").optional().messages({
+        "any.only": "Role must be either 'user' or 'admin'",
+    }),
+
+    gender: Joi.string().valid("male", "female").optional().messages({
+        "any.only": "Gender must be either 'male' or 'female'",
+    }),
+
+    status: Joi.string().valid("active", "inactive").optional().messages({
+        "any.only": "Status must be either 'active' or 'inactive'",
+    }),
+});
+export const loginSchema = Joi.object({
+    email: Joi.string().email().required().messages({
+        "string.empty": "Email is Required",
+        "string.email": "Email is not valid",
+    }),
+    password: Joi.string().min(8).required().messages({
+        "string.empty": "Password is Required",
+        "string.min": "Password must be at least 8 characters",
+    }),
+});
+export const confirmEmailSchema = Joi.object({
+    otp: Joi.string().length(6).required().messages({
+        "string.empty": "OTP is Required",
+        "string.length": "OTP must be 6 characters",
+    }),
+});
+export const forgotPasswordSchema = Joi.object({
+    email: Joi.string().email().required().messages({
+        "string.empty": "Email is Required",
+        "string.email": "Email is not valid",
+    }),
+});
+export const resetPasswordSchema = Joi.object({
+    newPassword: Joi.string().min(8).required().messages({
+        "string.empty": "Password is Required",
+        "string.min": "Password must be at least 8 characters",
+    }),
+    confirmPassword: Joi.string()
+        .min(8)
+        .required()
+        .valid(Joi.ref("newPassword"))
+        .messages({
+            "string.empty": "Confirm Password is Required",
+            "string.min": "Confirm Password must be at least 8 characters",
+            "any.only": "Passwords do not match",
+        }),
+});

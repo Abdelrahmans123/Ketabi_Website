@@ -10,5 +10,4 @@ class AppError extends Error {
 	}
 }
 
-const appErrorInstance = new AppError();
-export default appErrorInstance;
+export default new AppError();

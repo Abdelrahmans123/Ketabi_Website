@@ -11,7 +11,7 @@ export const connectMongoDB = async () => {
 export const redisClient = createClient({
 	url: process.env.REDIS_URL,
 });
-export const connectRedis = async () => {
+export const connectRedisDB = async () => {
 	try {
 		redisClient.on("error", (err) => console.error("Redis Client Error", err));
 		await redisClient.connect();
