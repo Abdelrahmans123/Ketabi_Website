@@ -12,7 +12,7 @@ const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
     await connectMongoDB();
-    //await connectRedisDB();
+    await connectRedisDB();
     app.use(createSessionMiddleware());
     app.use(morganLogger);
     app.use("/api/auth", authRoutes);

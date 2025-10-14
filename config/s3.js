@@ -1,9 +1,7 @@
-// services/s3.js
 import { S3Client } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import path from "path";
 
-// Load envs (in case this file is imported standalone)
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -11,7 +9,7 @@ const REGION = process.env.AWS_REGION;
 const BUCKET = process.env.S3_BUCKET;
 
 if (!REGION || !BUCKET) {
-  throw new Error("Missing required AWS environment variables: AWS_REGION or S3_BUCKET");
+  throw new Error("Missing required AWS environment variables");
 }
 
 const s3Client = new S3Client({

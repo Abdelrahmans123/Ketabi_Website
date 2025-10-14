@@ -6,7 +6,6 @@ import { successResponse } from "../utils/successResponse.js";
 import { uploadBufferToS3 } from "../config/s3.js"; 
 
 export const AddBook = asyncHandler(async (req, res, next) => {
-  // Expecting file in req.file (from multer memory storage)
   if (!req.file) {
     const book = await create(Book, req.body);
     return successResponse({
@@ -19,7 +18,6 @@ export const AddBook = asyncHandler(async (req, res, next) => {
 
 
   const file = req.file;
-  console.log("📂 File detected:", req.file);
   const result = await uploadBufferToS3(file.buffer, file.originalname, file.mimetype, "books/pdf");
 
   const bookData = {
