@@ -1,9 +1,7 @@
 import mongoose from "mongoose";
-import { paymentStatus, orderStatus, paymentMethods, itemType, deliveryStatus } from "../utils/orderEnums";
-
-const count = await mongoose.model('orders').countDocuments();
-const coupons = mongoose.model('coupons');
-const books = mongoose.model('books');
+import { paymentStatus, orderStatus, paymentMethods, itemType, deliveryStatus } from "../utils/orderEnums.js";
+import Coupon from "./Coupon.js";
+import Book from "./Book.js";
 
 const orderSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'users', required: true },
@@ -53,22 +51,29 @@ const orderSchema = new mongoose.Schema({
     personalizedMessage: { type: String },
 }, { timestamps: true });
 
+
 // Indexes
-orderSchema.index({ user: 1 });
-orderSchema.index({ orderNumber: 1 });
 orderSchema.index({ createdAt: -1 });
+
+const Order = mongoose.model('orders', orderSchema);
+
 
 // Pre-save hooks
 orderSchema.pre('save', async function (next) {
 
     // Generate order number if not present
     if (!this.orderNumber) {
-        this.orderNumber = `ORD-${count + 1}-${Date.now().toString().slice(-6)}`;
+        try {
+            const count = await mongoose.model('orders').countDocuments();
+            this.orderNumber = `ORD-${count + 1}-${Date.now().toString().slice(-6)}`;
+        } catch (err) {
+            return next(new Error('Failed to generate order number: ' + err.message));
+        }
     }
 
     // Get the discount percentage if coupon is applied
     if (this.discountApplied && this.discountApplied.coupon) {
-        const discountPercentage = await coupons.findOne({code: this.discountApplied.coupon}).select('discountPercentage -_id');
+        const discountPercentage = await Coupon.findOne({ code: this.discountApplied.coupon }).select('discountPercentage -_id');
         if (discountPercentage) {
             this.discountApplied.discountPercentage = discountPercentage.discountPercentage;
         } else {
@@ -91,8 +96,8 @@ orderSchema.pre('save', async function (next) {
 
     // Validate stock for physical books
     for (const item of this.items) {
-        if(item.type === itemType.PHYSICAL) {
-            const book = await books.findById(item.book);
+        if (item.type === itemType.PHYSICAL) {
+            const book = await Book.findById(item.book);
             if (!book || book.stock < item.quantity) {
                 return next(new Error(`Insufficient stock for book ${item.bookTitle}`));
             }
@@ -102,4 +107,5 @@ orderSchema.pre('save', async function (next) {
     next();
 });
 
-module.exports = mongoose.model('orders', orderSchema);
+
+export { Order };

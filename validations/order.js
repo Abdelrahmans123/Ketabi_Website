@@ -1,5 +1,5 @@
-import { body } from "express-validator";
-import { itemType, paymentMethod } from "../utils/orderEnums.js";
+import { body, param } from "express-validator";
+import { itemType, paymentMethods } from "../utils/orderEnums.js";
 
 export const orderSchema = {
     createOrder: [
@@ -55,7 +55,7 @@ export const orderSchema = {
         body("paymentMethod")
             .notEmpty()
             .withMessage("Payment method is required")
-            .isIn(Object.values(paymentMethod))
+            .isIn(Object.values(paymentMethods))
             .withMessage("Payment method not supported"),
         body("isGift")
             .optional()

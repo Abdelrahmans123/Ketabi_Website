@@ -1,11 +1,12 @@
 import { mongoose } from "mongoose";
-import { carts } from "../models/Cart.js";
+import  Cart  from "../models/Cart.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { successResponse } from "../utils/successResponse.js";
-import { itemType } from "../utils/orderEnums";
+import { itemType } from "../utils/orderEnums.js";
 
-const books = mongoose.model('books');
+const books = mongoose.model('Book');
+const carts = mongoose.model('carts');
 
 function errorhandler(message, statusCode) {
     return (AppError.create(message, statusCode));
@@ -36,7 +37,7 @@ export const addTocart = asyncHandler(async (req, res, next) => {
         return next(errorhandler("Not enough Stock", 400));
     }
     if (!cart) {
-        cart = new carts({
+        cart = new Cart({
             user: req.user._id,
             items: [{ book, bookTitle: name, quantity, type, price: type === itemType.EBOOK ? bookDoc.price * 0.45 : bookDoc.price }],
             totalPrice: quantity * (type === itemType.EBOOK ? bookDoc.price * 0.45 : bookDoc.price)

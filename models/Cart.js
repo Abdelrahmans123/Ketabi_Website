@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import { itemType } from "../utils/orderEnums";
+import { itemType } from "../utils/orderEnums.js";
 
-const books = mongoose.model('books');
+const books = mongoose.model('Book');
 
 const cartItemSchema = new mongoose.Schema({
     book: { type: mongoose.Schema.Types.ObjectId, ref: 'books', required: true },
@@ -16,9 +16,6 @@ const cartSchema = new mongoose.Schema({
     items: [cartItemSchema],
     totalPrice: { type: Number, min: 0 },
 }, { timestamps: true });
-
-// Index for user lookup
-cartSchema.index({ user: 1 });
 
 cartSchema.pre('save', async function (next) {
     // Calculate total price
@@ -44,4 +41,5 @@ cartSchema.pre('save', async function (next) {
     next();
 });
 
-module.exports = mongoose.model('carts', cartSchema);
+const Cart = mongoose.model('carts', cartSchema);
+export default Cart;
