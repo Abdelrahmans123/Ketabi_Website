@@ -54,6 +54,15 @@ const BookSchema = new mongoose.Schema(
             enum: ["in stock", "out of stock", "removed"],
             default: "in stock",
         },
+        pdf: {
+            key: { type: String },
+            url: { type: String },
+            fileName: { type: String },
+            size: { type: Number },
+            mimeType: { type: String },
+            uploadedAt: { type: Date },
+        },
+
         categoryRef: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Genre",

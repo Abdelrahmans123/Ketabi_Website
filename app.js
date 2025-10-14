@@ -14,11 +14,12 @@ const bootstrap = async () => {
     await connectMongoDB();
     //await connectRedisDB();
     app.use(createSessionMiddleware());
-    app.use(express.json());
     app.use(morganLogger);
     app.use("/api/auth", authRoutes);
     app.use("/api/genres", genreRoutes);
     app.use("/api/books", bookRouter);
+    app.use(express.json());
+
     app.use("/api/users", profileRouter);
     app.all("/{*dummy}", (req, res, next) => {
         res.status(404).json({
