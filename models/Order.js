@@ -4,12 +4,12 @@ import Coupon from "./Coupon.js";
 import Book from "./Book.js";
 
 const orderSchema = new mongoose.Schema({
-    user: { type: mongoose.Schema.Types.ObjectId, ref: 'users', required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     userEmail: { type: String, required: true },
     orderNumber: { type: String, unique: true, required: true },
     items: [
         {
-            book: { type: mongoose.Schema.Types.ObjectId, ref: 'books', required: true },
+            book: { type: mongoose.Schema.Types.ObjectId, ref: 'Book', required: true },
             bookTitle: { type: String, required: true },
             quantity: { type: Number, required: true, min: 1 },
             price: { type: Number, required: true, min: 0 },

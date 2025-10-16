@@ -23,8 +23,8 @@ export const paymentMethods = {
 }
 
 export const itemType = {
-    PHYSICAL: "Physical",
-    EBOOK: "Ebook"
+    PHYSICAL: "physical",
+    EBOOK: "ebook"
 };
 
 export const deliveryStatus = {
