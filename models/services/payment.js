@@ -1,0 +1,18 @@
+import Stripe from 'stripe';
+import 'dotenv/config'; // Ensure dotenv is loaded if not in index.js
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+export async function processPayment(order) {
+   try {
+    const paymentIntent = await stripe.paymentIntents.create({    
+      amount: Math.round(order.finalPrice * 100),
+      currency: 'egp',
+      description: `Order ${order.orderNumber}`,
+      receipt_email: order.userEmail,
+    });
+    return { id: paymentIntent.id, client_secret: paymentIntent.client_secret };
+  } catch (error) {
+    throw new AppError(`Payment failed: ${error.message}`, 400);
+  }
+} 

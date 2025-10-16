@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { addressValidation } from "./address.js";
 
 export const registerSchema = Joi.object({
     name: Joi.string().min(2).required().messages({
@@ -32,9 +33,7 @@ export const registerSchema = Joi.object({
         "string.max": "Phone number must be between 10 and 15 characters",
     }),
 
-    address: Joi.string().required().messages({
-        "string.empty": "Address is Required",
-    }),
+    address: addressValidation,
 
     role: Joi.string().valid("user", "admin").optional().messages({
         "any.only": "Role must be either 'user' or 'admin'",
