@@ -11,14 +11,15 @@ import { redisClient } from "../config/db.js";
 import { generateOTP } from "../utils/generateOTP.js";
 
 export const register = asyncHandler(async (req, res, next) => {
-    const { name, email, password, phone, address, gender } = req.body;
+    const { name, email, password, phone, address, gender, role } = req.body;
     const existingUser = await findOne(User, { email });
+    console.log("🚀 ~ existingUser:", existingUser);
     if (existingUser) {
-        const error = AppError.create("User already exists", 400);
+        const error = new AppError("User already exists", 400);
         return next(error);
     }
     if (password !== req.body.confirmPassword) {
-        const error = AppError.create("Passwords do not match", 400);
+        const error = new AppError("Passwords do not match", 400);
         return next(error);
     }
     const hashedPassword = generateHash({ plainText: password });
@@ -36,6 +37,7 @@ export const register = asyncHandler(async (req, res, next) => {
         phone: encryptedPhone,
         address,
         gender,
+        role,
         confirmEmailOtp: otpHash,
         confirmEmailOtpExpires: otpExpiry,
     });
@@ -59,23 +61,20 @@ export const confirmEmail = asyncHandler(async (req, res, next) => {
     const { otp } = req.body;
     const userId = req.session.userId;
     if (!userId) {
-        const error = AppError.create(
-            "Session expired, please login again",
-            401
-        );
+        const error = new AppError("Session expired, please login again", 401);
         return next(error);
     }
     const user = await findById(User, userId);
     if (!user) {
-        const error = AppError.create("User not found", 404);
+        const error = new AppError("User not found", 404);
         return next(error);
     }
     if (user.isEmailConfirmed) {
-        const error = AppError.create("Email already confirmed", 400);
+        const error = new AppError("Email already confirmed", 400);
         return next(error);
     }
     if (Date.now() > user.confirmEmailOtpExpires) {
-        const error = AppError.create("OTP has expired", 400);
+        const error = new AppError("OTP has expired", 400);
         return next(error);
     }
     const isOtpValid = compareHash({
@@ -83,7 +82,7 @@ export const confirmEmail = asyncHandler(async (req, res, next) => {
         hash: user.confirmEmailOtp,
     });
     if (!isOtpValid) {
-        const error = AppError.create("Invalid OTP", 400);
+        const error = new AppError("Invalid OTP", 400);
         return next(error);
     }
     await updateOne(
@@ -106,7 +105,7 @@ export const login = asyncHandler(async (req, res, next) => {
     const { email, password } = req.body;
     const user = await findOne(User, { email });
     if (!user) {
-        const error = AppError.create("Invalid Credentials", 401);
+        const error = new AppError("Invalid Credentials", 401);
         return next(error);
     }
     const isPasswordValid = compareHash({
@@ -114,14 +113,11 @@ export const login = asyncHandler(async (req, res, next) => {
         hash: user.password,
     });
     if (!isPasswordValid) {
-        const error = AppError.create("Invalid Credentials", 401);
+        const error = new AppError("Invalid Credentials", 401);
         return next(error);
     }
     if (!user.isEmailConfirmed) {
-        const error = AppError.create(
-            "Please confirm your email to login",
-            401
-        );
+        const error = new AppError("Please confirm your email to login", 401);
         return next(error);
     }
 
@@ -149,20 +145,17 @@ export const login = asyncHandler(async (req, res, next) => {
 export const confirmLogin = asyncHandler(async (req, res, next) => {
     const userId = req.session.userId;
     if (!userId) {
-        const error = AppError.create(
-            "Session expired, please login again",
-            401
-        );
+        const error = new AppError("Session expired, please login again", 401);
         return next(error);
     }
     const user = await findById(User, userId);
     const { otp } = req.body;
     if (!user) {
-        const error = AppError.create("User not found", 404);
+        const error = new AppError("User not found", 404);
         return next(error);
     }
     if (Date.now() > user.twoFactorOtpExpires) {
-        const error = AppError.create("OTP has expired", 400);
+        const error = new AppError("OTP has expired", 400);
         return next(error);
     }
     const isOtpValid = compareHash({
@@ -170,7 +163,7 @@ export const confirmLogin = asyncHandler(async (req, res, next) => {
         hash: user.twoFactorOtp,
     });
     if (!isOtpValid) {
-        const error = AppError.create("Invalid OTP", 400);
+        const error = new AppError("Invalid OTP", 400);
         return next(error);
     }
     await updateOne(
@@ -183,7 +176,7 @@ export const confirmLogin = asyncHandler(async (req, res, next) => {
         }
     );
     const jwtId = nanoid().toString();
-    const accessToken = generateJWT(user, "1h", jwtId);
+    const accessToken = generateJWT(user, jwtId);
     await redisClient.hSet(`token:${jwtId}`, { userId: user._id.toString() });
     const oneHourInSeconds = 60 * 60;
     await redisClient.expire(`token:${jwtId}`, oneHourInSeconds);
@@ -201,11 +194,11 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
     const user = await findOne(User, { email });
     req.session.userId = user?._id;
     if (!req.session.userId) {
-        const error = AppError.create("Session expired, please try again", 401);
+        const error = new AppError("Session expired, please try again", 401);
         return next(error);
     }
     if (!user) {
-        const error = AppError.create("User not found", 404);
+        const error = new AppError("User not found", 404);
         return next(error);
     }
     const otp = generateOTP();
@@ -233,11 +226,11 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
     const userId = req.session.userId;
     const user = await findById(User, userId);
     if (!user) {
-        const error = AppError.create("User not found", 404);
+        const error = new AppError("User not found", 404);
         return next(error);
     }
     if (Date.now() > user.resetPasswordOtpExpires) {
-        const error = AppError.create("OTP has expired", 400);
+        const error = new AppError("OTP has expired", 400);
         return next(error);
     }
     const isOtpValid = compareHash({
@@ -245,7 +238,7 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
         hash: user.resetPasswordOtp,
     });
     if (!isOtpValid) {
-        const error = AppError.create("Invalid OTP", 400);
+        const error = new AppError("Invalid OTP", 400);
         return next(error);
     }
     const hashedPassword = generateHash({ plainText: newPassword });

@@ -9,7 +9,7 @@ export const validate = (schema) => {
                 [err.path.join(".")]: err.message,
             }));
 
-            const appError = AppError.create(extractedErrors, 400);
+            const appError = AppError(extractedErrors, 400);
             return next(appError);
         }
         next();

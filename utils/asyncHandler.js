@@ -6,7 +6,7 @@ const asyncHandler = (fn) => {
             await fn(req, res, next);
         } catch (error) {
             console.error(error);
-            const appError = AppError.create(error.message, error.statusCode);
+            const appError = new AppError(error.message, error.statusCode);
             next(appError);
         }
     };
