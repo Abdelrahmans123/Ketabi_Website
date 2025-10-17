@@ -7,7 +7,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 
 export const getProfile = asyncHandler(async (req, res, next) => {
     const user = await findById(User, req.user._id);
-    if (!user) return next(AppError.create("User not found", 404));
+    if (!user) return next(AppError("User not found", 404));
 
     return successResponse({
         res,
