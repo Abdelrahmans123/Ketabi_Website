@@ -16,6 +16,7 @@ const bootstrap = async () => {
     const PORT = process.env.PORT || 3000;
     await connectMongoDB();
     await connectRedisDB();
+    app.use(express.json());
     app.use(createSessionMiddleware());
     app.use(morganLogger);
     app.use("/webhook/stripe", stripeRouter)
@@ -24,7 +25,7 @@ const bootstrap = async () => {
     app.use("/api/books", bookRouter);
 	app.use("/api/cart", cartRouter);
 	app.use("/api/orders", orderRouter);
-    app.use(express.json());
+    
 
     app.use("/api/users", profileRouter);
     app.all("/{*dummy}", (req, res, next) => {
