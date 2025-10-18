@@ -17,10 +17,7 @@ const orderSchema = new mongoose.Schema({
         },
     ],
     totalPrice: { type: Number, min: 0, required: true, min: 0 },
-    discountApplied: {
-        coupon: { type: String },
-        discountPercentage: { type: Number, default: 0 },
-    },
+    discountApplied: {type: String},
     finalPrice: { type: Number, min: 0, required: true, min: 0 },
     orderStatus: {
         type: String,

@@ -11,8 +11,9 @@ import stripeRouter from "./utils/stripe.js";
 import createSessionMiddleware from "./config/session.js";
 import { morganLogger } from "./middlewares/morgan.js";
 import profileRouter from "./routes/profile.js";
-import reviewRoutes from "./routes/review.js";
 import { initializeIO } from "./socketIO/index.js";
+import couponRouter from "./routes/coupon.js";
+import reviewRoutes from "./routes/review.js";
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
@@ -27,6 +28,8 @@ const bootstrap = async () => {
     app.use("/api/books", bookRouter);
     app.use("/api/cart", cartRouter);
     app.use("/api/orders", orderRouter);
+    app.use("/api/users", profileRouter);
+    app.use("/api/coupons", couponRouter);
 
     app.use("/api/users", profileRouter);
     app.use("/api/reviews", reviewRoutes);

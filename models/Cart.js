@@ -31,10 +31,11 @@ cartSchema.pre('save', async function (next) {
         }
         if(item.type === itemType.EBOOK){
             item.price = book.price * 0.45;
+            item.quantity = 1;
         } else {
             item.price = book.price;
         }
-        this.totalPrice += item.price * item.quantity;
+        this.totalPrice += item.price * item.quantity * (1 - book.discount / 100);
     }
     next();
 });
