@@ -45,20 +45,55 @@ export const AddBook = asyncHandler(async (req, res, next) => {
         data: book,
     });
 });
-
 export const getBooks = asyncHandler(async (req, res, next) => {
-    const books = await findAll(Book);
-    if (books.length === 0) {
-        const error = AppError("No Books Found", 404);
+    const query = req.query;
+    const limit = parseInt(query.limit) || 10;
+    const page = parseInt(query.page) || 1;
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+    if (query.title) filter.title = { $regex: query.title, $options: "i" };
+    if (query.author) filter.author = { $regex: query.author, $options: "i" };
+    if (query.genre) filter.genre = query.genre;
+
+    let sort = {};
+    if (query.sortBy && query.order) {
+        sort[query.sortBy] = query.order === "desc" ? -1 : 1;
+    } else {
+        sort = { createdAt: -1 };
+    }
+
+   const books = await Book.find(filter).skip(skip).limit(limit).sort(sort);
+   const totalBooks = await Book.countDocuments(filter);
+
+    if (!books.length) {
+        const error = new AppError("No Books Found", 404);
         return next(error);
     }
+
+    const data = {
+        books,
+        pagination: {
+            totalBooks,
+            currentPage: page,
+            totalPages: Math.ceil(totalBooks / limit),
+            limit,
+        },
+    };
+
     return successResponse({
         res,
         statusCode: 200,
         message: "Books Retrieved Successfully",
-        data: books,
+        data,
     });
 });
+
+
+
+
+
+
 
 export const getBookByID = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
