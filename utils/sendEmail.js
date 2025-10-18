@@ -18,7 +18,6 @@ export const sendEmail = async ({ to, subject, text, html }) => {
 
 	try {
 		await transporter.sendMail(mailOptions);
-		console.log('OTP: text', text)
 		console.log("Email sent successfully");
 	} catch (error) {
 		console.error("Error sending email:", error);
