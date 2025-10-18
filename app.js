@@ -14,7 +14,6 @@ import profileRouter from "./routes/profile.js";
 import { initializeIO } from "./socketIO/index.js";
 import couponRouter from "./routes/coupon.js";
 import reviewRoutes from "./routes/review.js";
-import { initializeIO } from "./socketIO/index.js";
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
