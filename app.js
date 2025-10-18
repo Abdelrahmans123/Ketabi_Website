@@ -1,6 +1,3 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
 import express from "express";
 import authRoutes from "./routes/auth.js";
 import genreRoutes from "./routes/genre.js";
