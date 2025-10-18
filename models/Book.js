@@ -68,6 +68,15 @@ const BookSchema = new mongoose.Schema(
             ref: "Genre",
             required: false,
         },
+        avgRating: {
+            type: Number,
+            default: 0
+        },
+
+        ratingsCount: {
+            type: Number,
+            default: 0
+        },
     },
     { timestamps: true }
 );
