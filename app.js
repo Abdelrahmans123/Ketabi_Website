@@ -14,6 +14,8 @@ import profileRouter from "./routes/profile.js";
 import { initializeIO } from "./socketIO/index.js";
 import couponRouter from "./routes/coupon.js";
 import reviewRoutes from "./routes/review.js";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
@@ -22,6 +24,14 @@ const bootstrap = async () => {
     app.use(express.json());
     app.use(createSessionMiddleware());
     app.use(morganLogger);
+    app.use(helmet());
+    app.use(
+        rateLimit({
+            windowMs: 15 * 60 * 1000,
+            limit: 10000,
+            message: "Too many requests from this IP, please try again later.",
+        })
+    );
     app.use("/webhook/stripe", stripeRouter);
     app.use("/api/auth", authRoutes);
     app.use("/api/genres", genreRoutes);
