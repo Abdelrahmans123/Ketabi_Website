@@ -13,11 +13,15 @@ export const authenticate = asyncHandler(async (req, res, next) => {
     const token = authHeader.split(" ")[1];
     const decoded = verifyJWT(token);
     const tokenData = await redisClient.hGetAll(`token:${decoded.jti}`);
+    const user = await User.findById(decoded.id);
+    const activeJti = await redisClient.get(`user:${decoded.id}:activeToken`);
+    if (activeJti !== decoded.jti) {
+        return next(new AppError("Logged in from another device", 401));
+    }
     if (Object.keys(tokenData).length === 0) {
         const error = new AppError("Token not found", 401);
         return next(error);
     }
-    const user = await User.findById(decoded.id);
     if (user?.changeCredentialTime?.getTime() > decoded.iat * 1000) {
         const error = new AppError("Token expired", 401);
         return next(error);
@@ -26,9 +30,8 @@ export const authenticate = asyncHandler(async (req, res, next) => {
         const error = new AppError("User not found or inactive", 401);
         return next(error);
     }
-    if (user.isTwoFactorEnabled && !user.isTwoFactorAuthenticated) {
-        const error = new AppError("Two factor authentication required", 401);
-        return next(error);
+    if (user.isTwoFactorEnabled && tokenData.twoFactorVerified !== "true") {
+        return next(new AppError("Two factor authentication required", 401));
     }
     if (user.isEmailConfirmed === false) {
         const error = new AppError("Please confirm your email to proceed", 401);

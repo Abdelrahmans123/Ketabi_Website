@@ -127,8 +127,16 @@ export const login = asyncHandler(async (req, res, next) => {
     await updateOne(
         User,
         { _id: user._id },
-        { twoFactorOtp: otpHash, twoFactorOtpExpires: otpExpiry }
+        {
+            twoFactorOtp: otpHash,
+            twoFactorOtpExpires: otpExpiry,
+            twoFactorOtpAttempts: 0,
+        }
     );
+    req.session.userId = user._id;
+    req.session.isAuthenticated = false;
+    req.session.otpPurpose = "login";
+    req.session.otpIssuedAt = Date.now();
     await sendEmail({
         to: email,
         subject: "Your Login OTP",
@@ -144,9 +152,8 @@ export const login = asyncHandler(async (req, res, next) => {
 
 export const confirmLogin = asyncHandler(async (req, res, next) => {
     const userId = req.session.userId;
-    if (!userId) {
-        const error = new AppError("Session expired, please login again", 401);
-        return next(error);
+    if (!userId || req.session.otpPurpose !== "login") {
+        return next(new AppError("Session expired or invalid flow", 401));
     }
     const user = await findById(User, userId);
     const { otp } = req.body;
@@ -158,28 +165,52 @@ export const confirmLogin = asyncHandler(async (req, res, next) => {
         const error = new AppError("OTP has expired", 400);
         return next(error);
     }
+    if (user.twoFactorOtpAttempts >= 5) {
+        return next(
+            new AppError("Too many invalid attempts, account locked", 403)
+        );
+    }
     const isOtpValid = compareHash({
         plainText: otp,
         hash: user.twoFactorOtp,
     });
     if (!isOtpValid) {
-        const error = new AppError("Invalid OTP", 400);
-        return next(error);
+        await updateOne(
+            User,
+            { _id: user._id },
+            { $inc: { twoFactorOtpAttempts: 1 } }
+        );
+        return next(new AppError("Invalid OTP", 400));
     }
+
     await updateOne(
         User,
         { _id: user._id },
         {
             twoFactorOtp: null,
             twoFactorOtpExpires: null,
+            twoFactorOtpAttempts: 0,
             isTwoFactorAuthenticated: true,
         }
     );
     const jwtId = nanoid().toString();
+    const oldTokenKey = await redisClient.get(`user:${user._id}:activeToken`);
+    if (oldTokenKey) {
+        await redisClient.del(`token:${oldTokenKey}`);
+    }
     const accessToken = generateJWT(user, jwtId);
-    await redisClient.hSet(`token:${jwtId}`, { userId: user._id.toString() });
+    await redisClient.hSet(`token:${jwtId}`, {
+        userId: user._id.toString(),
+        twoFactorVerified: "true",
+    });
+
     const oneHourInSeconds = 60 * 60;
     await redisClient.expire(`token:${jwtId}`, oneHourInSeconds);
+    req.session.isAuthenticated = true;
+    req.session.otpPurpose = null;
+    await redisClient.hSet(`token:${jwtId}`, { userId: user._id.toString() });
+    await redisClient.expire(`token:${jwtId}`, 60 * 60);
+    await redisClient.set(`user:${user._id}:activeToken`, jwtId);
     return successResponse({
         res,
         statusCode: 200,
@@ -253,6 +284,13 @@ export const logout = asyncHandler(async (req, res, next) => {
     const { flag } = req.body;
     switch (flag) {
         case "all":
+            const activeJti = await redisClient.get(
+                `user:${req.user.id}:activeToken`
+            );
+            if (activeJti) {
+                await redisClient.del(`token:${activeJti}`);
+                await redisClient.del(`user:${req.user.id}:activeToken`);
+            }
             await updateOne(
                 User,
                 { _id: req.user.id },
@@ -261,9 +299,13 @@ export const logout = asyncHandler(async (req, res, next) => {
             break;
         default:
             await redisClient.del(`token:${req.user.jti}`);
-            break;
+            const storedJti = await redisClient.get(
+                `user:${req.user.id}:activeToken`
+            );
+            if (storedJti === req.user.jti) {
+                await redisClient.del(`user:${req.user.id}:activeToken`);
+            }
     }
-
     return successResponse({
         res,
         statusCode: 200,

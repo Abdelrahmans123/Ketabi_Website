@@ -2,6 +2,7 @@ import express from "express";
 import authRoutes from "./routes/auth.js";
 import genreRoutes from "./routes/genre.js";
 import bookRouter from "./routes/book.js";
+import ticketRoutes from "./routes/ticket.js";
 import { connectMongoDB, connectRedisDB } from "./config/db.js";
 import HTTPStatusText from "./utils/HTTPStatusText.js";
 import errorHandler from "./middlewares/errorHandler.js";
@@ -40,7 +41,7 @@ const bootstrap = async () => {
     app.use("/api/orders", orderRouter);
     app.use("/api/users", profileRouter);
     app.use("/api/coupons", couponRouter);
-
+    app.use("/api/tickets", ticketRoutes);
     app.use("/api/users", profileRouter);
     app.use("/api/reviews", reviewRoutes);
     app.all("/{*dummy}", (req, res, next) => {
