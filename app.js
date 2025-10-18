@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from "express";
 import authRoutes from "./routes/auth.js";
 import genreRoutes from "./routes/genre.js";
@@ -11,6 +14,7 @@ import stripeRouter from "./utils/stripe.js";
 import createSessionMiddleware from "./config/session.js";
 import { morganLogger } from "./middlewares/morgan.js";
 import profileRouter from "./routes/profile.js";
+import reviewRoutes from "./routes/review.js";
 import { initializeIO } from "./socketIO/index.js";
 const bootstrap = async () => {
     const app = express();
@@ -28,6 +32,7 @@ const bootstrap = async () => {
     app.use("/api/orders", orderRouter);
 
     app.use("/api/users", profileRouter);
+    app.use("/api/reviews", reviewRoutes);
     app.all("/{*dummy}", (req, res, next) => {
         res.status(404).json({
             message: "Route Not Found",
