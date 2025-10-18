@@ -9,8 +9,10 @@ import cartRouter from "./routes/cart.js"
 import orderRouter from "./routes/order.js"
 import stripeRouter from './utils/stripe.js'
 import createSessionMiddleware from "./config/session.js";
-import { morganLogger } from "./middlewares/morgan.js"
-import profileRouter  from "./routes/profile.js";
+import { morganLogger } from "./middlewares/morgan.js";
+import profileRouter from "./routes/profile.js";
+import { initializeIO } from "./socketIO/index.js";
+import couponRouter from "./routes/coupon.js";
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
@@ -23,11 +25,10 @@ const bootstrap = async () => {
     app.use("/api/auth", authRoutes);
     app.use("/api/genres", genreRoutes);
     app.use("/api/books", bookRouter);
-	app.use("/api/cart", cartRouter);
-	app.use("/api/orders", orderRouter);
-    
-
+    app.use("/api/cart", cartRouter);
+    app.use("/api/orders", orderRouter);
     app.use("/api/users", profileRouter);
+    app.use("/api/coupons", couponRouter);
     app.all("/{*dummy}", (req, res, next) => {
         res.status(404).json({
             message: "Route Not Found",

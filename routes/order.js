@@ -1,20 +1,19 @@
 import express from "express";
 import { authenticate } from "../middlewares/auth.js";
-import { orderSchema } from "../validations/order.js";
 import { validate } from "../middlewares/validation.js";
 import { createOrder, getOrder, getOrderHistory } from "../controllers/orderController.js"
-
+import { createOrderSchema, getOrderSchema, getAllOrdersSchema } from "../validations/order.js";
 
 const router = express.Router();
 
 // create order
-router.post('/', authenticate, validate( createOrder), createOrder);
+router.post('/', authenticate, validate( createOrderSchema), createOrder);
 
 // get order history
-router.get('/', authenticate, getOrderHistory);
+router.get('/', authenticate, validate(getAllOrdersSchema), getOrderHistory);
 
 // get order
-router.get('/:orderId', authenticate, getOrder);
+router.get('/:orderId', authenticate, validate(getOrderSchema), getOrder);
 
 export default router;
 

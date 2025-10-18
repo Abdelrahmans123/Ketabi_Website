@@ -1,10 +1,12 @@
-export const findOne = async (model, query, filter, populate) => {
-    try {
-        return await model.findOne(query, filter).populate(populate || "");
-    } catch (error) {
-        console.error("Error finding document:", error);
-        throw error;
+export const findOne = async (model, query, filter, sort, populate) => {
+    let mongooseQuery = model.findOne(query, filter);
+    if (populate){
+        mongooseQuery = mongooseQuery.populate(populate);
     }
+    if(sort){
+        mongooseQuery = mongooseQuery.sort(sort);
+    }
+    return await mongooseQuery;
 };
 export const findAll = async (model, query = {}) => {
     try {

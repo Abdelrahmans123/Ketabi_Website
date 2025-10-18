@@ -8,8 +8,8 @@ export const validate = (schema) => {
             const extractedErrors = error.details.map((err) => ({
                 [err.path.join(".")]: err.message,
             }));
-
-            const appError = AppError.create(extractedErrors, 400);
+            const appError = new AppError(JSON.stringify(extractedErrors), 400);
+            // Original ===> const appError = new AppError(extractedErrors, 400);
             return next(appError);
         }
         next();
