@@ -1,8 +1,20 @@
-export const findOne = async (model, query, filter, populate, sort) => {
-    return await model
-        .findOne(query, filter)
-        .populate(populate || "")
-        .sort(sort || "");
+export const findOne = async (
+    model,
+    query,
+    filter = null,
+    populate = null,
+    sort = null
+) => {
+    let queryBuilder = model.findOne(query, filter);
+
+    if (populate) {
+        queryBuilder = queryBuilder.populate(populate);
+    }
+    if (sort) {
+        queryBuilder = queryBuilder.sort(sort);
+    }
+
+    return await queryBuilder;
 };
 export const findAll = async (model, filter = {}) => {
     return await model.find({}, filter);
