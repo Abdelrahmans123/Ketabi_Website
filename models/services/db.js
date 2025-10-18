@@ -1,107 +1,71 @@
-export const findOne = async (model, query, filter, sort, populate) => {
-    let mongooseQuery = model.findOne(query, filter);
-    if (populate){
-        mongooseQuery = mongooseQuery.populate(populate);
+export const findOne = async (
+    model,
+    query,
+    filter = null,
+    populate = null,
+    sort = null
+) => {
+    let queryBuilder = model.findOne(query, filter);
+
+    if (populate) {
+        queryBuilder = queryBuilder.populate(populate);
     }
-    if(sort){
-        mongooseQuery = mongooseQuery.sort(sort);
+    if (sort) {
+        queryBuilder = queryBuilder.sort(sort);
     }
-    return await mongooseQuery;
+
+    return await queryBuilder;
 };
-export const findAll = async (model, query = {}) => {
-    try {
-        return await model.find(query);
-    } catch (error) {
-        console.error("Error finding documents:", error);
-        throw error;
-    }
+export const findAll = async (model, filter = {}) => {
+    return await model.find({}, filter);
 };
 export const findById = async (model, id, filter) => {
-    try {
-        return await model.findById(id, filter);
-    } catch (error) {
-        console.error("Error finding document by ID:", error);
-        throw error;
-    }
+    return await model.findById(id, filter);
 };
 export const findBySlug = async (model, slug, filter) => {
-    try {
-        return await model.findOne({ slug }, filter);
-    } catch (error) {
-        console.error("Error finding document by slug:", error);
-        throw error;
-    }
+    return await model.findOne({ slug }, filter);
 };
 
 export const create = async (model, data) => {
-    try {
-        const newDocument = model.create(data);
-        return await newDocument;
-    } catch (error) {
-        console.error("Error creating document:", error);
-        throw error;
-    }
+    const newDocument = await model.create(data);
+    return newDocument;
 };
 export const update = async (model, query, data) => {
-    try {
-        const updatedDocument = await model.findOneAndUpdate(query, data, {
-            new: true,
-        });
-        return updatedDocument;
-    } catch (error) {
-        console.error("Error updating document:", error);
-        throw error;
-    }
+    const updatedDocument = await model.findOneAndUpdate(query, data, {
+        new: true,
+    });
+    return updatedDocument;
 };
 export const updateOne = async (model, query, data) => {
-    try {
-        const updatedDocument = await model.updateOne(query, data, {
-            new: true,
-        });
-        return updatedDocument;
-    } catch (error) {
-        console.error("Error updating document:", error);
-        throw error;
-    }
+    const updatedDocument = await model.updateOne(query, data, {
+        new: true,
+    });
+    return updatedDocument;
 };
 export const findByIdAndUpdate = async (model, id, data) => {
-    try {
-        const updatedDocument = await model.findByIdAndUpdate(id, data, {
-            new: true,
-        });
-        return updatedDocument;
-    } catch (error) {
-        console.error("Error updating document by ID:", error);
-        throw error;
-    }
+    const updatedDocument = await model.findByIdAndUpdate(id, data, {
+        new: true,
+    });
+    return updatedDocument;
 };
-
+export const findOneAndUpdate = async (model, query, data) => {
+    const updatedDocument = await model.findOneAndUpdate(query, data, {
+        new: true,
+    });
+    return updatedDocument;
+};
 export const findBySlugAndUpdate = async (model, slug, data) => {
-    try {
-        const updatedDocument = await model.findOneAndUpdate({ slug }, data, {
-            new: true,
-        });
-        return updatedDocument;
-    } catch (error) {
-        console.error("Error updating document by slug:", error);
-        throw error;
-    }
+    const updatedDocument = await model.findOneAndUpdate({ slug }, data, {
+        new: true,
+    });
+    return updatedDocument;
 };
 
 export const remove = async (model, query) => {
-    try {
-        const deletedDocument = await model.findOneAndDelete(query);
-        return deletedDocument;
-    } catch (error) {
-        console.error("Error deleting document:", error);
-        throw error;
-    }
+    const deletedDocument = await model.findOneAndDelete(query);
+    return deletedDocument;
 };
 export const findBySlugAndDelete = async (model, slug) => {
-    try {
-        const deletedDocument = await model.findOneAndDelete({ slug });
-        return deletedDocument;
-    } catch (error) {
-        console.error("Error deleting document by slug:", error);
-        throw error;
-    } };
+    const deletedDocument = await model.findOneAndDelete({ slug });
+    return deletedDocument;
+};
