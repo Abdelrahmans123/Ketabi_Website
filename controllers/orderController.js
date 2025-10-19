@@ -10,14 +10,13 @@ import { processPayment } from "../config/payment.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import Book from "../models/Book.js";
-import { findOne } from "../models/services/db.js";
+import { findByIdAndUpdate, findOne } from "../models/services/db.js";
 import Coupon from "../models/Coupon.js";
 import User from "../models/User.js";
+import Cart from "../models/Cart.js"
 // items (book, quantity, type), shipping address, paymentMethod, isGift, receipient email, personalizedMessage, coupon
 
 export const createOrder = asyncHandler(async (req, res, next) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
 
   let totalPrice = 0;
   const {
@@ -25,7 +24,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     shippingAddress,
     paymentMethod,
     isGift,
-    recipientEmail,
+    recipientEmail = req.user.email,
     personalizedMessage,
     coupon,
   } = req.body;
@@ -39,17 +38,25 @@ export const createOrder = asyncHandler(async (req, res, next) => {
   }
 
   let discountPercentage = 0;
-  if (coupon !== "No Coupon Used") {
-    const couponData = await findOne(Coupon, { code: coupon });
-    if (couponData) {
+  const couponData = await findOne(Coupon, { code: coupon });
+  if (!couponData) {
+    const error = new AppError(
+      `This coupon ${coupon} has no match in the database`,
+      404
+    );
+    return next(error);
+  } else {
+    if (couponData.numOfUsers >= couponData.usageLimit) {
       const error = new AppError(
-        `This coupon ${coupon} has no match in the database`,
+        `The total number of users have been reached for this coupon: ${coupon}`,
         404
       );
       return next(error);
+    } else {
+      discountPercentage = couponData.discountPercentage;
     }
-    discountPercentage = couponData.discountPercentage;
   }
+
 
   if (!Object.values(paymentMethods).includes(paymentMethod)) {
     const error = new AppError(
@@ -59,12 +66,17 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     return next(error);
   }
 
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   for (const item of items) {
     const book = await Book.findById(item.book).session(session);
+
     if (!book) {
       const error = new AppError(`Book with ID ${item.book} not found`, 404);
       return next(error);
     }
+
     if (item.type === itemType.PHYSICAL && item.quantity > book.stock) {
       const error = new AppError(
         `Not enough stock for book ${book.title}`,
@@ -72,34 +84,56 @@ export const createOrder = asyncHandler(async (req, res, next) => {
       );
       return next(error);
     }
+
     if (
       item.type === itemType.PHYSICAL &&
-      (shippingAddress.street ||
+      !(shippingAddress.street ||
         shippingAddress.city ||
         shippingAddress.postalCode ||
         shippingAddress.country ||
         shippingAddress.phoneNumber)
     ) {
       const error = new AppError(
-        `Not enough shipping information to deliver this book: ${book.title}`,
+        `Not enough shipping information to deliver this book: ${book.name}`,
         400
       );
       return next(error);
     }
 
-    if (item.type === itemType.EBOOK){
-        item.quantity = 1;
-    }
+    let itemPrice = book.price;
 
-    totalPrice =
-      totalPrice + book.price * item.quantity * (1 - book.discount / 100);
-    book.stock -= item.quantity;
-    await book.save({ session });
+    if (item.type === itemType.EBOOK) {
+      item.quantity = 1;
+      itemPrice = book.price * 0.45;
+    }
+    
+    item.price = itemPrice;
+
+    totalPrice = totalPrice + itemPrice * item.quantity * (1 - book.discount / 100);
+
+    if (item.type === itemType.PHYSICAL) {
+      book.stock -= item.quantity;
+      await book.save({ session });
+    }
   }
 
   totalPrice = Math.round(totalPrice * 100) / 100;
-  const finalPrice =
-    Math.round(totalPrice * (1 - discountPercentage / 100) * 100) / 100;
+
+  if (totalPrice < couponData.minOrderValue) {
+    const error = `Not enough total to use this coupon. minimum order is ${couponData.minOrderValue}`;
+    return next(error, 404);
+  }
+
+  const finalPrice = Math.round(totalPrice * (1 - discountPercentage / 100) * 100) / 100;
+
+  // Update coupon
+  if (coupon) {
+    await findByIdAndUpdate(
+      Coupon, couponData._id,
+      { $inc: { numOfUsers: 1 } },
+      { session, new: true }
+    );
+  }
 
   if (isGift) {
     const receiver = await findOne(User, { email: recipientEmail });
@@ -110,8 +144,6 @@ export const createOrder = asyncHandler(async (req, res, next) => {
       );
       return next(error);
     }
-  } else {
-    recipientEmail = req.user.email;
   }
 
   const order = new Order({
@@ -119,7 +151,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     userEmail: userEmail,
     items: items,
     totalPrice: totalPrice,
-    discountApplied: coupon,
+    discountApplied: discountPercentage,
     finalPrice: finalPrice,
     shippingAddress: shippingAddress,
     paymentMethod: paymentMethod,
@@ -129,12 +161,25 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     paymentStatus: paymentStatus.PENDING,
   });
 
+  await order.save({ session });
+  
+  await findOneAndUpdate(
+    Cart,
+    { user: userId },
+    { $set: { items: [] } },
+    { session, new: true }
+  );
+
+  await session.commitTransaction();
+  session.endSession();
+
   const payment = await processPayment(order);
   order.transactionId = payment.id;
   order.paymentStatus = paymentStatus.COMPLETED;
-  await order.save({ session });
-  cart.items = [];
-  await cart.save({ session });
+  await order.save();
+
+
+
   await sendEmail(
     req.user.email,
     "Order Confirmation",

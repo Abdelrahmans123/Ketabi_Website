@@ -10,7 +10,6 @@ const orderSchema = new mongoose.Schema({
     items: [
         {
             book: { type: mongoose.Schema.Types.ObjectId, ref: 'Book', required: true },
-            bookTitle: { type: String, required: true },
             quantity: { type: Number, required: true, min: 1 },
             price: { type: Number, required: true, min: 0 },
             type: { type: String, enum: Object.values(itemType), required: true },
