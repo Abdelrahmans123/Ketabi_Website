@@ -17,6 +17,7 @@ import couponRouter from "./routes/coupon.js";
 import reviewRoutes from "./routes/review.js";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
+import {  cleanupOldCartsJob, couponExpirationJob,deleteUnconfirmedUsersJob, inactiveUserReminderJob } from "./jobs/cronJobs.js";
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
@@ -54,8 +55,13 @@ const bootstrap = async () => {
     });
     app.use(errorHandler);
 
+    
     const server = app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
+        couponExpirationJob();
+        deleteUnconfirmedUsersJob();
+        inactiveUserReminderJob();
+        cleanupOldCartsJob();
     });
     initializeIO(server);
 };

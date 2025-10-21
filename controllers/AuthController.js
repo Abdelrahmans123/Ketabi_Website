@@ -11,304 +11,303 @@ import { redisClient } from "../config/db.js";
 import { generateOTP } from "../utils/generateOTP.js";
 
 export const register = asyncHandler(async (req, res, next) => {
-    const { name, email, password, phone, address, gender, role } = req.body;
-    const existingUser = await findOne(User, { email });
-    console.log("🚀 ~ existingUser:", existingUser);
-    if (existingUser) {
-        const error = new AppError("User already exists", 400);
-        return next(error);
-    }
-    if (password !== req.body.confirmPassword) {
-        const error = new AppError("Passwords do not match", 400);
-        return next(error);
-    }
-    const hashedPassword = generateHash({ plainText: password });
-    const encryptedPhone = encrypt({
-        plainText: phone,
-        secretKey: process.env.ENCRYPTION_KEY,
-    });
-    const otp = generateOTP();
-    const otpHash = generateHash({ plainText: otp });
-    const otpExpiry = Date.now() + 10 * 60 * 1000;
-    const newUser = await create(User, {
-        name,
-        email,
-        password: hashedPassword,
-        phone: encryptedPhone,
-        address,
-        gender,
-        role,
-        confirmEmailOtp: otpHash,
-        confirmEmailOtpExpires: otpExpiry,
-    });
-    await sendEmail({
-        to: email,
-        subject: "Welcome to Our App - Confirm Your Email",
-        text: `Your OTP is ${otp}. Please use it to confirm your email.`,
-    });
-    req.session.userId = newUser._id;
-    return successResponse({
-        res,
-        statusCode: 201,
-        message: "User registered successfully. Check your email for OTP.",
-        data: {
-            name: newUser.name,
-            email: newUser.email,
-        },
-    });
+  const { name, email, password, phone, address, gender, role } = req.body;
+  const existingUser = await findOne(User, { email });
+  console.log("🚀 ~ existingUser:", existingUser);
+  if (existingUser) {
+    const error = new AppError("User already exists", 400);
+    return next(error);
+  }
+  if (password !== req.body.confirmPassword) {
+    const error = new AppError("Passwords do not match", 400);
+    return next(error);
+  }
+  const hashedPassword = generateHash({ plainText: password });
+  const encryptedPhone = encrypt({
+    plainText: phone,
+    secretKey: process.env.ENCRYPTION_KEY,
+  });
+  const otp = generateOTP();
+  const otpHash = generateHash({ plainText: otp });
+  const otpExpiry = Date.now() + 10 * 60 * 1000;
+  const newUser = await create(User, {
+    name,
+    email,
+    password: hashedPassword,
+    phone: encryptedPhone,
+    address,
+    gender,
+    role,
+    confirmEmailOtp: otpHash,
+    confirmEmailOtpExpires: otpExpiry,
+  });
+  await sendEmail({
+    to: email,
+    subject: "Welcome to Our App - Confirm Your Email",
+    text: `Your OTP is ${otp}. Please use it to confirm your email.`,
+  });
+  req.session.userId = newUser._id;
+  return successResponse({
+    res,
+    statusCode: 201,
+    message: "User registered successfully. Check your email for OTP.",
+    data: {
+      name: newUser.name,
+      email: newUser.email,
+    },
+  });
 });
 export const confirmEmail = asyncHandler(async (req, res, next) => {
-    const { otp } = req.body;
-    const userId = req.session.userId;
-    if (!userId) {
-        const error = new AppError("Session expired, please login again", 401);
-        return next(error);
+  const { otp } = req.body;
+  const userId = req.session.userId;
+  if (!userId) {
+    const error = new AppError("Session expired, please login again", 401);
+    return next(error);
+  }
+  const user = await findById(User, userId);
+  if (!user) {
+    const error = new AppError("User not found", 404);
+    return next(error);
+  }
+  if (user.isEmailConfirmed) {
+    const error = new AppError("Email already confirmed", 400);
+    return next(error);
+  }
+  if (Date.now() > user.confirmEmailOtpExpires) {
+    const error = new AppError("OTP has expired", 400);
+    return next(error);
+  }
+  const isOtpValid = compareHash({
+    plainText: otp,
+    hash: user.confirmEmailOtp,
+  });
+  if (!isOtpValid) {
+    const error = new AppError("Invalid OTP", 400);
+    return next(error);
+  }
+  await updateOne(
+    User,
+    { _id: user._id },
+    {
+      isEmailConfirmed: true,
+      confirmEmail: new Date(),
+      confirmEmailOtp: null,
+      confirmEmailOtpExpires: null,
     }
-    const user = await findById(User, userId);
-    if (!user) {
-        const error = new AppError("User not found", 404);
-        return next(error);
-    }
-    if (user.isEmailConfirmed) {
-        const error = new AppError("Email already confirmed", 400);
-        return next(error);
-    }
-    if (Date.now() > user.confirmEmailOtpExpires) {
-        const error = new AppError("OTP has expired", 400);
-        return next(error);
-    }
-    const isOtpValid = compareHash({
-        plainText: otp,
-        hash: user.confirmEmailOtp,
-    });
-    if (!isOtpValid) {
-        const error = new AppError("Invalid OTP", 400);
-        return next(error);
-    }
-    await updateOne(
-        User,
-        { _id: user._id },
-        {
-            isEmailConfirmed: true,
-            confirmEmail: new Date(),
-            confirmEmailOtp: null,
-            confirmEmailOtpExpires: null,
-        }
-    );
-    return successResponse({
-        res,
-        statusCode: 200,
-        message: "Email confirmed successfully",
-    });
+  );
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Email confirmed successfully",
+  });
 });
 export const login = asyncHandler(async (req, res, next) => {
-    const { email, password } = req.body;
-    const user = await findOne(User, { email });
-    if (!user) {
-        const error = new AppError("Invalid Credentials", 401);
-        return next(error);
-    }
-    const isPasswordValid = compareHash({
-        plainText: password,
-        hash: user.password,
-    });
-    if (!isPasswordValid) {
-        const error = new AppError("Invalid Credentials", 401);
-        return next(error);
-    }
-    if (!user.isEmailConfirmed) {
-        const error = new AppError("Please confirm your email to login", 401);
-        return next(error);
-    }
+  const { email, password } = req.body;
+  const user = await findOne(User, { email });
+  if (!user) {
+    const error = new AppError("Invalid Credentials", 401);
+    return next(error);
+  }
+  const isPasswordValid = compareHash({
+    plainText: password,
+    hash: user.password,
+  });
+  if (!isPasswordValid) {
+    const error = new AppError("Invalid Credentials", 401);
+    return next(error);
+  }
+  if (!user.isEmailConfirmed) {
+    const error = new AppError("Please confirm your email to login", 401);
+    return next(error);
+  }
 
-    const otp = generateOTP();
-    const otpHash = generateHash({ plainText: otp });
-    const otpExpiry = Date.now() + 10 * 60 * 1000;
-    await updateOne(
-        User,
-        { _id: user._id },
-        {
-            twoFactorOtp: otpHash,
-            twoFactorOtpExpires: otpExpiry,
-            twoFactorOtpAttempts: 0,
-        }
-    );
-    req.session.userId = user._id;
-    req.session.isAuthenticated = false;
-    req.session.otpPurpose = "login";
-    req.session.otpIssuedAt = Date.now();
-    await sendEmail({
-        to: email,
-        subject: "Your Login OTP",
-        text: `Your OTP is ${otp}. Please use it to complete your login.`,
-    });
-    req.session.userId = user._id;
-    return successResponse({
-        res,
-        statusCode: 200,
-        message: "OTP sent to your email",
-    });
+  const otp = generateOTP();
+  const otpHash = generateHash({ plainText: otp });
+  const otpExpiry = Date.now() + 10 * 60 * 1000;
+  await updateOne(
+    User,
+    { _id: user._id },
+    {
+      twoFactorOtp: otpHash,
+      twoFactorOtpExpires: otpExpiry,
+      twoFactorOtpAttempts: 0,
+    }
+  );
+  req.session.userId = user._id;
+  req.session.isAuthenticated = false;
+  req.session.otpPurpose = "login";
+  req.session.otpIssuedAt = Date.now();
+  await sendEmail({
+    to: email,
+    subject: "Your Login OTP",
+    text: `Your OTP is ${otp}. Please use it to complete your login.`,
+  });
+  req.session.userId = user._id;
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "OTP sent to your email",
+  });
 });
 
 export const confirmLogin = asyncHandler(async (req, res, next) => {
-    const userId = req.session.userId;
-    if (!userId || req.session.otpPurpose !== "login") {
-        return next(new AppError("Session expired or invalid flow", 401));
-    }
-    const user = await findById(User, userId);
-    const { otp } = req.body;
-    if (!user) {
-        const error = new AppError("User not found", 404);
-        return next(error);
-    }
-    if (Date.now() > user.twoFactorOtpExpires) {
-        const error = new AppError("OTP has expired", 400);
-        return next(error);
-    }
-    if (user.twoFactorOtpAttempts >= 5) {
-        return next(
-            new AppError("Too many invalid attempts, account locked", 403)
-        );
-    }
-    const isOtpValid = compareHash({
-        plainText: otp,
-        hash: user.twoFactorOtp,
-    });
-    if (!isOtpValid) {
-        await updateOne(
-            User,
-            { _id: user._id },
-            { $inc: { twoFactorOtpAttempts: 1 } }
-        );
-        return next(new AppError("Invalid OTP", 400));
-    }
-
+  const userId = req.session.userId;
+  if (!userId || req.session.otpPurpose !== "login") {
+    return next(new AppError("Session expired or invalid flow", 401));
+  }
+  const user = await findById(User, userId);
+  const { otp } = req.body;
+  if (!user) {
+    const error = new AppError("User not found", 404);
+    return next(error);
+  }
+  if (Date.now() > user.twoFactorOtpExpires) {
+    const error = new AppError("OTP has expired", 400);
+    return next(error);
+  }
+  if (user.twoFactorOtpAttempts >= 5) {
+    return next(new AppError("Too many invalid attempts, account locked", 403));
+  }
+  const isOtpValid = compareHash({
+    plainText: otp,
+    hash: user.twoFactorOtp,
+  });
+  if (!isOtpValid) {
     await updateOne(
-        User,
-        { _id: user._id },
-        {
-            twoFactorOtp: null,
-            twoFactorOtpExpires: null,
-            twoFactorOtpAttempts: 0,
-            isTwoFactorAuthenticated: true,
-        }
+      User,
+      { _id: user._id },
+      { $inc: { twoFactorOtpAttempts: 1 } }
     );
-    const jwtId = nanoid().toString();
-    const oldTokenKey = await redisClient.get(`user:${user._id}:activeToken`);
-    if (oldTokenKey) {
-        await redisClient.del(`token:${oldTokenKey}`);
+    return next(new AppError("Invalid OTP", 400));
+  }
+  const lastLoginAt = new Date();
+  await updateOne(
+    User,
+    { _id: user._id },
+    {
+      twoFactorOtp: null,
+      twoFactorOtpExpires: null,
+      twoFactorOtpAttempts: 0,
+      isTwoFactorAuthenticated: true,
+      lastLoginAt: lastLoginAt,
     }
-    const accessToken = generateJWT(user, jwtId);
-    await redisClient.hSet(`token:${jwtId}`, {
-        userId: user._id.toString(),
-        twoFactorVerified: "true",
-    });
+  );
+  const jwtId = nanoid().toString();
+  const oldTokenKey = await redisClient.get(`user:${user._id}:activeToken`);
+  if (oldTokenKey) {
+    await redisClient.del(`token:${oldTokenKey}`);
+  }
+  const accessToken = generateJWT(user, jwtId);
+  await redisClient.hSet(`token:${jwtId}`, {
+    userId: user._id.toString(),
+    twoFactorVerified: "true",
+  });
 
-    const oneHourInSeconds = 60 * 60;
-    await redisClient.expire(`token:${jwtId}`, oneHourInSeconds);
-    req.session.isAuthenticated = true;
-    req.session.otpPurpose = null;
-    await redisClient.hSet(`token:${jwtId}`, { userId: user._id.toString() });
-    await redisClient.expire(`token:${jwtId}`, 60 * 60);
-    await redisClient.set(`user:${user._id}:activeToken`, jwtId);
-    return successResponse({
-        res,
-        statusCode: 200,
-        message: "Login successful",
-        data: {
-            accessToken,
-        },
-    });
+  const oneHourInSeconds = 60 * 60;
+  await redisClient.expire(`token:${jwtId}`, oneHourInSeconds);
+  req.session.isAuthenticated = true;
+  req.session.otpPurpose = null;
+  await redisClient.hSet(`token:${jwtId}`, { userId: user._id.toString() });
+  await redisClient.expire(`token:${jwtId}`, 60 * 60);
+  await redisClient.set(`user:${user._id}:activeToken`, jwtId);
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Login successful",
+    data: {
+      accessToken,
+    },
+  });
 });
 export const forgotPassword = asyncHandler(async (req, res, next) => {
-    const { email } = req.body;
-    const user = await findOne(User, { email });
-    req.session.userId = user?._id;
-    if (!req.session.userId) {
-        const error = new AppError("Session expired, please try again", 401);
-        return next(error);
-    }
-    if (!user) {
-        const error = new AppError("User not found", 404);
-        return next(error);
-    }
-    const otp = generateOTP();
-    const otpHash = generateHash({ plainText: otp });
-    const otpExpiry = Date.now() + 10 * 60 * 1000;
-    await updateOne(
-        User,
-        { _id: user._id },
-        { resetPasswordOtp: otpHash, resetPasswordOtpExpires: otpExpiry }
-    );
-    await sendEmail({
-        to: email,
-        subject: "Reset Your Password",
-        text: `Your OTP is ${otp}. Please use it to reset your password.`,
-    });
-    return successResponse({
-        res,
-        statusCode: 200,
-        message: "OTP sent to your email",
-    });
+  const { email } = req.body;
+  const user = await findOne(User, { email });
+  req.session.userId = user?._id;
+  if (!req.session.userId) {
+    const error = new AppError("Session expired, please try again", 401);
+    return next(error);
+  }
+  if (!user) {
+    const error = new AppError("User not found", 404);
+    return next(error);
+  }
+  const otp = generateOTP();
+  const otpHash = generateHash({ plainText: otp });
+  const otpExpiry = Date.now() + 10 * 60 * 1000;
+  await updateOne(
+    User,
+    { _id: user._id },
+    { resetPasswordOtp: otpHash, resetPasswordOtpExpires: otpExpiry }
+  );
+  await sendEmail({
+    to: email,
+    subject: "Reset Your Password",
+    text: `Your OTP is ${otp}. Please use it to reset your password.`,
+  });
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "OTP sent to your email",
+  });
 });
 export const resetPassword = asyncHandler(async (req, res, next) => {
-    const { otp, newPassword } = req.body;
+  const { otp, newPassword } = req.body;
 
-    const userId = req.session.userId;
-    const user = await findById(User, userId);
-    if (!user) {
-        const error = new AppError("User not found", 404);
-        return next(error);
-    }
-    if (Date.now() > user.resetPasswordOtpExpires) {
-        const error = new AppError("OTP has expired", 400);
-        return next(error);
-    }
-    const isOtpValid = compareHash({
-        plainText: otp,
-        hash: user.resetPasswordOtp,
-    });
-    if (!isOtpValid) {
-        const error = new AppError("Invalid OTP", 400);
-        return next(error);
-    }
-    const hashedPassword = generateHash({ plainText: newPassword });
-    await updateOne(User, { _id: user._id }, { password: hashedPassword });
-    return successResponse({
-        res,
-        statusCode: 200,
-        message: "Password reset successfully",
-    });
+  const userId = req.session.userId;
+  const user = await findById(User, userId);
+  if (!user) {
+    const error = new AppError("User not found", 404);
+    return next(error);
+  }
+  if (Date.now() > user.resetPasswordOtpExpires) {
+    const error = new AppError("OTP has expired", 400);
+    return next(error);
+  }
+  const isOtpValid = compareHash({
+    plainText: otp,
+    hash: user.resetPasswordOtp,
+  });
+  if (!isOtpValid) {
+    const error = new AppError("Invalid OTP", 400);
+    return next(error);
+  }
+  const hashedPassword = generateHash({ plainText: newPassword });
+  await updateOne(User, { _id: user._id }, { password: hashedPassword });
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Password reset successfully",
+  });
 });
 export const logout = asyncHandler(async (req, res, next) => {
-    const { flag } = req.body;
-    switch (flag) {
-        case "all":
-            const activeJti = await redisClient.get(
-                `user:${req.user.id}:activeToken`
-            );
-            if (activeJti) {
-                await redisClient.del(`token:${activeJti}`);
-                await redisClient.del(`user:${req.user.id}:activeToken`);
-            }
-            await updateOne(
-                User,
-                { _id: req.user.id },
-                { $set: { changeCredentialTime: new Date() } }
-            );
-            break;
-        default:
-            await redisClient.del(`token:${req.user.jti}`);
-            const storedJti = await redisClient.get(
-                `user:${req.user.id}:activeToken`
-            );
-            if (storedJti === req.user.jti) {
-                await redisClient.del(`user:${req.user.id}:activeToken`);
-            }
-    }
-    return successResponse({
-        res,
-        statusCode: 200,
-        message: "Logged out successfully",
-    });
+  const { flag } = req.body;
+  switch (flag) {
+    case "all":
+      const activeJti = await redisClient.get(
+        `user:${req.user.id}:activeToken`
+      );
+      if (activeJti) {
+        await redisClient.del(`token:${activeJti}`);
+        await redisClient.del(`user:${req.user.id}:activeToken`);
+      }
+      await updateOne(
+        User,
+        { _id: req.user.id },
+        { $set: { changeCredentialTime: new Date() } }
+      );
+      break;
+    default:
+      await redisClient.del(`token:${req.user.jti}`);
+      const storedJti = await redisClient.get(
+        `user:${req.user.id}:activeToken`
+      );
+      if (storedJti === req.user.jti) {
+        await redisClient.del(`user:${req.user.id}:activeToken`);
+      }
+  }
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Logged out successfully",
+  });
 });
