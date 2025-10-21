@@ -5,18 +5,20 @@ import { Order } from "../models/Order.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import AppError from "../utils/AppError.js";
 import { successResponse } from "../utils/successResponse.js";
-import { paymentStatus } from "../utils/orderEnums.js"; 
+import { paymentStatus } from "../utils/orderEnums.js";
 
 export const createReview = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
+
+
   const { book, rating, title, body } = req.body;
 
   const bookExists = await Book.exists({ _id: book });
   if (!bookExists) throw new AppError("Book not found", 404);
-
+  const orders = await Order.find();
   const purchased = await Order.exists({
     user: userId,
-    paymentStatus: paymentStatus.paid,
+    paymentStatus: paymentStatus.COMPLETED,
     "items.book": new mongoose.Types.ObjectId(book),
   });
 
