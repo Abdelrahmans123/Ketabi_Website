@@ -15,8 +15,7 @@ export const paymentStatus = {
 };
 
 export const paymentMethods = { 
-    CREDIT_CARD: "Credit Card",
-    DEBIT_CARD: "Debit Card",
+    STRIPE: "Stripe",
     PAYPAL: "PayPal",
     COD: "Cash on Delivery",
     Paymob: "Paymob",

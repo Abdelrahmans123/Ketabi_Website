@@ -75,6 +75,7 @@ const userSchema = new mongoose.Schema(
         },
         twoFactorOtp: String,
         twoFactorOtpExpires: Date,
+        lastLoginAt: { type: Date, default: null },
     },
     { timestamps: true }
 );
