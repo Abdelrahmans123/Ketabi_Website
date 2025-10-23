@@ -14,6 +14,7 @@ import { morganLogger } from "./middlewares/morgan.js";
 import profileRouter from "./routes/profile.js";
 import { initializeIO } from "./socketIO/index.js";
 import couponRouter from "./routes/coupon.js";
+import publisherRoutes from "./routes/publisher.js";
 import reviewRoutes from "./routes/review.js";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
@@ -38,6 +39,7 @@ const bootstrap = async () => {
     app.use("/api/auth", authRoutes);
     app.use("/api/genres", genreRoutes);
     app.use("/api/books", bookRouter);
+    app.use("/api/publishers", publisherRoutes);
     app.use("/api/cart", cartRouter);
     app.use("/api/orders", orderRouter);
     app.use("/api/users", profileRouter);

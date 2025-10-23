@@ -3,11 +3,19 @@ import { create, findAll, findById, remove } from "../models/services/db.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { successResponse } from "../utils/successResponse.js";
+import Publisher from "../models/Publisher.js";
 //import { uploadBufferToS3 } from "../config/s3.js";
 
 export const AddBook = asyncHandler(async (req, res, next) => {
     if (!req.file) {
         const book = await create(Book, req.body);
+
+        await Publisher.findByIdAndUpdate(
+            req.body.publisher,
+            { $addToSet: { booksPublished: book._id } },
+            { new: true }
+        );
+
         return successResponse({
             res,
             statusCode: 201,
@@ -38,6 +46,13 @@ export const AddBook = asyncHandler(async (req, res, next) => {
 
     const book = await create(Book, bookData);
 
+    if (book.publisher) {
+        await Publisher.findByIdAndUpdate(
+            book.publisher,
+            { $push: { booksPublished: book._id } }
+        );
+    }
+
     return successResponse({
         res,
         statusCode: 201,
@@ -63,8 +78,8 @@ export const getBooks = asyncHandler(async (req, res, next) => {
         sort = { createdAt: -1 };
     }
 
-   const books = await Book.find(filter).skip(skip).limit(limit).sort(sort);
-   const totalBooks = await Book.countDocuments(filter);
+    const books = await Book.find(filter).skip(skip).limit(limit).sort(sort);
+    const totalBooks = await Book.countDocuments(filter);
 
     if (!books.length) {
         const error = new AppError("No Books Found", 404);

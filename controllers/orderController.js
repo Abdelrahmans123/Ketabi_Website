@@ -65,6 +65,9 @@ export const createOrder = asyncHandler(async (req, res, next) => {
       const error = new AppError(`Book with ID ${item.book} not found`, 404);
       return next(error);
     }
+
+    item.publisher = book.publisher;
+
     if (item.type === itemType.PHYSICAL && item.quantity > book.stock) {
       const error = new AppError(
         `Not enough stock for book ${book.title}`,
@@ -87,8 +90,8 @@ export const createOrder = asyncHandler(async (req, res, next) => {
       return next(error);
     }
 
-    if (item.type === itemType.EBOOK){
-        item.quantity = 1;
+    if (item.type === itemType.EBOOK) {
+      item.quantity = 1;
     }
 
     totalPrice =
@@ -133,6 +136,12 @@ export const createOrder = asyncHandler(async (req, res, next) => {
   order.transactionId = payment.id;
   order.paymentStatus = paymentStatus.COMPLETED;
   await order.save({ session });
+
+  const bookIds = order.items.map(i => i.book);
+  await User.findByIdAndUpdate(
+    userId,
+    { $addToSet: { library: { $each: bookIds } } }, { session });
+
   cart.items = [];
   await cart.save({ session });
   await sendEmail(

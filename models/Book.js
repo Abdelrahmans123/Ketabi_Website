@@ -77,6 +77,12 @@ const BookSchema = new mongoose.Schema(
             type: Number,
             default: 0
         },
+        publisher: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Publisher",
+            required: true
+        }
+
     },
     { timestamps: true }
 );
