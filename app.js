@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import authRoutes from "./routes/auth.js";
 import genreRoutes from "./routes/genre.js";
 import bookRouter from "./routes/book.js";
@@ -17,13 +18,30 @@ import couponRouter from "./routes/coupon.js";
 import reviewRoutes from "./routes/review.js";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
-import {  cleanupOldCartsJob, couponExpirationJob,deleteUnconfirmedUsersJob, inactiveUserReminderJob } from "./jobs/cronJobs.js";
+import {
+    cleanupOldCartsJob,
+    couponExpirationJob,
+    deleteUnconfirmedUsersJob,
+    inactiveUserReminderJob,
+} from "./jobs/cronJobs.js";
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
     await connectMongoDB();
     await connectRedisDB();
     app.use(express.json());
+    const whitelist = [process.env.CLIENT_URL];
+    const corsOptions = {
+        origin: function (origin, callback) {
+            if (whitelist.indexOf(origin) !== -1 || !origin) {
+                callback(null, true);
+            } else {
+                callback(new Error("Not allowed by CORS"));
+            }
+        },
+        credentials: true,
+    };
+    app.use(cors(corsOptions));
     app.use(createSessionMiddleware());
     app.use(morganLogger);
     app.use(helmet());
@@ -55,7 +73,6 @@ const bootstrap = async () => {
     });
     app.use(errorHandler);
 
-    
     const server = app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
         couponExpirationJob();
