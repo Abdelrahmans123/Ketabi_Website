@@ -7,22 +7,22 @@ import HTTPStatusText from "./utils/HTTPStatusText.js";
 import errorHandler from "./middlewares/errorHandler.js";
 import cartRouter from "./routes/cart.js";
 import orderRouter from "./routes/order.js";
-import stripeRouter from "./utils/stripe.js";
 import createSessionMiddleware from "./config/session.js";
 import { morganLogger } from "./middlewares/morgan.js";
 import profileRouter from "./routes/profile.js";
 import { initializeIO } from "./socketIO/index.js";
 import couponRouter from "./routes/coupon.js";
 import reviewRoutes from "./routes/review.js";
+import stripeRouter from './controllers/webhookController.js';
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
     await connectMongoDB();
     await connectRedisDB();
-    app.use(express.json());
     app.use(createSessionMiddleware());
     app.use(morganLogger);
-    app.use("/webhook/stripe", stripeRouter);
+    app.use("/api/webhooks", stripeRouter);
+    app.use(express.json());
     app.use("/api/auth", authRoutes);
     app.use("/api/genres", genreRoutes);
     app.use("/api/books", bookRouter);
@@ -30,7 +30,6 @@ const bootstrap = async () => {
     app.use("/api/orders", orderRouter);
     app.use("/api/users", profileRouter);
     app.use("/api/coupons", couponRouter);
-
     app.use("/api/users", profileRouter);
     app.use("/api/reviews", reviewRoutes);
     app.all("/{*dummy}", (req, res, next) => {

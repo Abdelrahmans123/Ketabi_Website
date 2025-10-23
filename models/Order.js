@@ -6,7 +6,7 @@ import Book from "./Book.js";
 const orderSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     userEmail: { type: String, required: true },
-    orderNumber: { type: String, unique: true, required: true },
+    orderNumber: { type: String, unique: true},
     items: [
         {
             book: { type: mongoose.Schema.Types.ObjectId, ref: 'Book', required: true },
@@ -60,7 +60,7 @@ orderSchema.pre('save', async function (next) {
     // Generate order number if not present
     if (!this.orderNumber) {
         try {
-            const count = await mongoose.model('orders').countDocuments();
+            const count = await mongoose.model('orders').countDocuments() || 0;
             this.orderNumber = `ORD-${count + 1}-${Date.now().toString().slice(-6)}`;
         } catch (err) {
             return next(new Error('Failed to generate order number: ' + err.message));

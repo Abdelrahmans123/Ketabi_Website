@@ -88,9 +88,7 @@ export const createOrderSchema = Joi.object({
   personalizedMessage: Joi.string().optional().messages({
     'string.base': 'Personalized message must be a string',
   }),
-  coupon: Joi.string().required().messages({
-    'any.required': 'coupon is required'
-  })
+  coupon: Joi.string().optional()
 });
 
 export const getOrderSchema = Joi.object({

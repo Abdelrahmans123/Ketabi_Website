@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import 'dotenv/config'; // Ensure dotenv is loaded if not in index.js
+import AppError from '../utils/AppError.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -10,6 +11,7 @@ export async function processPayment(order) {
       currency: 'egp',
       description: `Order ${order.orderNumber}`,
       receipt_email: order.userEmail,
+      payment_method_types: ['card'],
     });
     return { id: paymentIntent.id, client_secret: paymentIntent.client_secret };
   } catch (error) {
