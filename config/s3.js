@@ -1,6 +1,7 @@
-import { S3Client } from "@aws-sdk/client-s3";
+import { S3Client,GetObjectCommand } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
 import path from "path";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -47,4 +48,23 @@ export async function uploadBufferToS3(buffer, filename, contentType, folder = "
     mimeType: contentType,
     uploadedAt: new Date(),
   };
+}
+
+
+
+
+export async function generateSignedDownloadUrl(key, expiresIn = 60) {
+  try {
+    const command = new GetObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+    });
+
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn });
+
+    return signedUrl;
+  } catch (error) {
+    console.error("Error generating signed URL:", error);
+    throw error;
+  }
 }
