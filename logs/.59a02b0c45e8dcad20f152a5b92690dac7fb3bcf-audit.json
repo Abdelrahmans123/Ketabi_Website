@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "/media/abdelrahman/Web Development/ITI/ECommerce Project By Node/Github/socialAuth/Ketabi_Website/logs/.59a02b0c45e8dcad20f152a5b92690dac7fb3bcf-audit.json",
+    "files": [
+        {
+            "date": 1761247617804,
+            "name": "/media/abdelrahman/Web Development/ITI/ECommerce Project By Node/Github/socialAuth/Ketabi_Website/logs/error-2025-10-23.log",
+            "hash": "1401edd7c73cf88ff39ca041c8f2b8af65edd7fdf2d1ad0c894f94d4d8d94633"
+        }
+    ],
+    "hashType": "sha256"
+}

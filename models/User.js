@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { genderEnum } from "../utils/genderEnum.js";
 import { roleEnum } from "../utils/roleEnum.js";
+import { providerEnum } from "../utils/providerEnum.js";
 
 const addressSchema = new mongoose.Schema(
     {
@@ -75,24 +76,23 @@ const userSchema = new mongoose.Schema(
         },
         twoFactorOtp: String,
         twoFactorOtpExpires: Date,
-        library: {
-            type: [
-                {
-                    book: {
-                        type: mongoose.Schema.Types.ObjectId,
-                        ref: "Book",
-                    },
-                    addedAt: {
-                        type: Date,
-                        default: Date.now,
-                    },
-                    _id: false,
-                },
-            ],
-            default: [],
+        lastLoginAt: { type: Date, default: null },
+        library: [
+            { type: mongoose.Schema.Types.ObjectId, ref: "Book" }
+        ],
+        twoFactorOtpAttempts: { type: Number, default: 0 },
+        provider: {
+            type: String,
+            enum: Object.values(providerEnum),
+            default: providerEnum.SYSTEM,
         },
-
+        isFirstLogin: {
+            type: Boolean,
+            default: false,
+        },
     },
+
+
     { timestamps: true }
 );
 
