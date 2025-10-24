@@ -53,6 +53,10 @@ export const createSchema = Joi.object({
     .messages({
       "any.only": "Status must be either 'in stock' or 'out of stock'",
     }),
+  publisher: Joi.string().required().messages({
+    "string.empty": "Publisher ID is required",
+    "any.required": "Publisher ID is required"
+  }),
 });
 
 export const updateSchema = Joi.object({

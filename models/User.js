@@ -77,6 +77,9 @@ const userSchema = new mongoose.Schema(
         twoFactorOtp: String,
         twoFactorOtpExpires: Date,
         lastLoginAt: { type: Date, default: null },
+        library: [
+            { type: mongoose.Schema.Types.ObjectId, ref: "Book" }
+        ],
         twoFactorOtpAttempts: { type: Number, default: 0 },
         provider: {
             type: String,
@@ -92,6 +95,8 @@ const userSchema = new mongoose.Schema(
             default: false,
         },
     },
+
+
     { timestamps: true }
 );
 
