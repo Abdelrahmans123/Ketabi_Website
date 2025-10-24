@@ -13,7 +13,8 @@ import Book from "../models/Book.js";
 import { findByIdAndUpdate, findOne, findOneAndUpdate } from "../models/services/db.js";
 import Coupon from "../models/Coupon.js";
 import User from "../models/User.js";
-import Cart from "../models/Cart.js"
+import Cart from "../models/Cart.js";
+import { successResponse } from "../utils/successResponse.js";
 // items (book, quantity, type), shipping address, paymentMethod, isGift, receipient email, personalizedMessage, coupon
 
 async function getCouponData(couponName) {
@@ -81,20 +82,30 @@ export const createOrder = asyncHandler(async (req, res, next) => {
   }
 
   // Validate gift user email
-  if(isGift && recipientEmail===userEmail){
+  if (isGift && recipientEmail === userEmail) {
     return next(new AppError(`Can't gift yourself, please give us gift email.`, 400));
-  }   
+  }
 
-  // Calculate total price
+  const library = req.user.library || [];
+  const libraryBookIds = library.map(item => item.book.toString());
+
+  // Calculate total price & check if EBOOK is already in library
   for (const item of items) {
     const book = await Book.findById(item.book);
+
+    // book not found in DB
     if (!book) {
-      return next(new AppError(`Book with ID ${item.book} not found`, 404));
+      return next(new AppError(`Book with ID ${item.book}/ title: ${item.name} not found`, 404));
     }
 
-    // Check physical book stock
+    // Ebook found in library
+    if (item.type === itemType.EBOOK && libraryBookIds.includes(item.book)) {
+      return next(new AppError(`${book.name} was found in your library`, 400));
+    }
+
+    // Check physical book   stock
     if (item.type === itemType.PHYSICAL && item.quantity > book.stock) {
-      return next(new AppError(`Not enough stock for ${book.title}`, 400));
+      return next(new AppError(`Not enough stock for ${book.name} with id: ${book._id}`, 400));
     }
 
     // Check shipping info if physical
@@ -106,7 +117,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
         shippingAddress.phoneNumber)
     ) {
       return next(
-        new AppError(`Incomplete shipping info for ${book.title}`, 400)
+        new AppError(`Incomplete shipping info for ${book.name} with id: ${book._id}`, 400)
       );
     }
 
@@ -117,9 +128,12 @@ export const createOrder = asyncHandler(async (req, res, next) => {
       itemPrice = book.price * 0.45;
     }
 
+    item.publisher = book._doc.publisher;
     // Attach price
     item.price = itemPrice;
     totalPrice += itemPrice * item.quantity * (1 - book.discount / 100);
+    item.discount = book.discount;
+    item.paymentStatus = paymentStatus.PENDING;
   }
 
   totalPrice = Math.round(totalPrice * 100) / 100;
@@ -164,16 +178,15 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     paymentStatus: paymentStatus.PENDING,
   });
 
-  order.orderNumber = order._id.toString();
-
+  await order.save();
   // Create Stripe payment intent
   const payment = await processPayment(order);
 
   // Attach Stripe info (still pending)
   order.transactionId = payment.id;
   await order.save();
-  console.log('dude: ',payment.client_secret);
-  
+  console.log('dude: ', payment.client_secret);
+
   // Clear user's cart immediately
   await findOneAndUpdate(
     Cart,
@@ -190,19 +203,54 @@ export const createOrder = asyncHandler(async (req, res, next) => {
   });
 });
 
-export const getOrderHistory = asyncHandler(async (req, res, next) => {
-  const orders = await findOne(Order, { user: req.user.id }, {}, "items.book", {
-    createdAt: -1,
-  });
-  if (!orders || orders.length === 0) {
-    const error = new AppError("No orders found", 404);
+export const getOrdersAdmin = asyncHandler(async (req, res, next) => {
+  const { user, email, orderStatus, orderNumber, paymentStatus, page = 1, limit = 10, sortOrder = "asc", sortBy = "createdAt" } = req.query;
+
+  if (user && email) {
+    const error = new AppError("Can't search using both userId and email", 404);
     return next(error);
   }
-  res.status(200).json({
-    status: "Success",
-    message: "Orders were retrieved successfully",
-    data: orders,
+
+  const filters = {};
+
+  if (user) filters.user = user;
+  if (email) filters.email = email;
+  if (orderStatus) filters.orderStatus = orderStatus;
+  if (orderNumber) filters.orderNumber = orderNumber;
+  if (paymentStatus) filters.paymentStatus = paymentStatus;
+
+  // Pagination logic
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  // Sorting logic
+  const sort = { [sortBy]: sortOrder === "asc" ? 1 : -1 };
+
+  const orders = await Order.find(filters).sort(sort).skip(skip).limit(parseInt(limit));
+  const total = await Order.countDocuments(filters);
+
+  if (!orders || orders.length === 0) {
+    return successResponse({
+      res,
+      statusCode: 200,
+      message: "No orders Found",
+      data: [],
+    });
+  }
+
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Orders retrieved successfully",
+    data: {
+      orders: orders,
+      pagination: {
+        total,
+        page: parseInt(page),
+        pages: Math.ceil(total / limit),
+      },
+    },
   });
+
 });
 
 export const getOrder = asyncHandler(async (req, res, next) => {

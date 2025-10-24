@@ -27,7 +27,8 @@ export const itemType = {
 };
 
 export const deliveryStatus = {
-    NOT_SHIPPED: "NotShipped",
+    PENDING: "Pending",
+    PROCESSING: "Processing",
     SHIPPED: "Shipped",
     IN_TRANSIT: "InTransit",
     DELIVERED: "Delivered",

@@ -1,4 +1,4 @@
-import { itemType, orderStatus, paymentMethods } from "../utils/orderEnums.js";
+import { itemType, orderStatus, paymentMethods, paymentStatus } from "../utils/orderEnums.js";
 import Joi from "joi";
 
 export const createOrderSchema = Joi.object({
@@ -32,7 +32,7 @@ export const createOrderSchema = Joi.object({
             'any.required': 'Item type is required for each item',
             'string.empty': 'Item type is required for each item',
             'any.only': 'Item type not supported',
-          }),
+          })
       })
     )
     .messages({
@@ -101,42 +101,17 @@ export const getOrderSchema = Joi.object({
 });
 
 export const getAllOrdersSchema = Joi.object({
-  userId: Joi.string()
-    .regex(/^[0-9a-fA-F]{24}$/)
-    .optional()
-    .messages({
-      'string.pattern.base': 'Invalid User ID',
-    }),
-  status: Joi.string()
-    .valid(...Object.values(orderStatus))
-    .optional()
-    .messages({
-      'any.only': 'Invalid order status',
-    }),
-  page: Joi.number()
-    .integer()
-    .min(1)
-    .default(1)
-    .messages({
-      'number.base': 'Page must be a number',
-      'number.min': 'Page must be at least 1',
-      'number.integer': 'Page must be an integer',
-    }),
-  limit: Joi.number()
-    .integer()
-    .min(1)
-    .max(100)
-    .default(10)
-    .messages({
-      'number.base': 'Limit must be a number',
+  user: Joi.string().regex(/^[0-9a-fA-F]{24}$/).optional().messages({ 'string.pattern.base': 'Invalid User ID', }),
+  email: Joi.string().email().optional(),
+  orderStatus: Joi.string().valid(...Object.values(orderStatus)).optional().messages({ 'any.only': 'Invalid order status', }),
+  orderNumber: Joi.string().optional(),
+  paymentStatus: Joi.string().valid(...Object.values(paymentStatus)).optional(),
+  page: Joi.number().integer().min(1).default(1).messages({'number.min': 'Page must be at least 1','number.integer': 'Page must be an integer',}),
+  limit: Joi.number().integer().min(1).max(100).default(10).messages({
       'number.min': 'Limit must be at least 1',
       'number.max': 'Limit cannot exceed 100',
       'number.integer': 'Limit must be an integer',
     }),
-  sort: Joi.string()
-    .regex(/^[a-zA-Z]+(?:,[a-zA-Z]+)*$/)
-    .optional()
-    .messages({
-      'string.pattern.base': 'Sort must be a comma-separated list of valid fields',
-    }),
+  sortOrder: Joi.string().valid("asc","dec").default("asc").optional(),
+  sortBy: Joi.string().optional().valid('createdAt').default('createdAt'),
 });

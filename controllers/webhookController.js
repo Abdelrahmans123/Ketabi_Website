@@ -1,11 +1,13 @@
 import express from "express";
 import Stripe from "stripe";
 import { Order } from "../models/Order.js";
+import  User  from "../models/User.js";
 import Book from "../models/Book.js";
 import Coupon from "../models/Coupon.js";
 import { sendEmail } from "../utils/sendEmail.js";
-import { paymentStatus } from "../utils/orderEnums.js";
+import { itemType, paymentStatus } from "../utils/orderEnums.js";
 import mongoose from "mongoose";
+import { findOneAndUpdate } from "../models/services/db.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
@@ -30,7 +32,7 @@ router.post(
         }
 
         const paymentIntent = event.data.object;
-        const orderNumber = paymentIntent?.description?.split(" ")[1];
+        const orderNumber = paymentIntent?.metadata?.orderNumber;
 
         if (!orderNumber) {
             console.warn("No order number found in payment description.");
@@ -48,14 +50,17 @@ router.post(
                 //  Successful payment
                 case "payment_intent.succeeded": {
                     const session = await mongoose.startSession();
-                    session.startTransaction(async () => {
+                    session.withTransaction(async () => {
                         order.paymentStatus = paymentStatus.COMPLETED;
                         order.transactionId = paymentIntent.id;
+                        for (const item of order.items) {
+                            item.paymentStatus = paymentStatus.COMPLETED
+                        }
                         await order.save();
-
+                        
                         // Update stock quantities
                         for (const item of order.items) {
-                            if (item.type === "PHYSICAL") {
+                            if (item.type === itemType.PHYSICAL) {
                                 await Book.findByIdAndUpdate(item.book, {
                                     $inc: { stock: -item.quantity },
                                 });
@@ -90,7 +95,45 @@ router.post(
                     }
 
                     // add books to the library
-                    
+                    try {
+                        const booksToAdd = order.items.filter(item => item.type === itemType.EBOOK).map(item => ({
+                            book: item.book,
+                            addedAt: new Date()
+                        }));
+
+                        console.log('BOoks to add: ', booksToAdd);
+
+                        if (booksToAdd.length > 0) {
+                            if (order.isGift && order.recipientEmail) {
+                                const recipient = await findOneAndUpdate(
+                                    User,
+                                    { email: order.recipientEmail },
+                                    { $addToSet: { library: { $each: booksToAdd } } } // prevent duplicates
+                                );
+                                console.log("recipient: ", recipient);
+                                
+                                if (!recipient) {
+                                    console.warn(`Recipient not found: ${order.recipientEmail}`);
+                                } else {
+                                    console.log(`Added ${booksToAdd.length} books to ${recipient.email}'s library (gift).`);
+                                }
+                            } else {
+                                const buyer = await findOneAndUpdate(
+                                    User,
+                                    { email: order.userEmail },
+                                    { $addToSet: { library: { $each: booksToAdd } } }
+                                );
+                                console.log("buyer: ", buyer);
+                                if (!buyer) {
+                                    console.warn(`Buyer not found: ${order.userEmail}`);
+                                } else {
+                                    console.log(`Added ${booksToAdd.length} books to ${buyer.email}'s library.`);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error(`Error adding books to library for Order ${order.orderNumber}: ${error.message}`);
+                    }
 
                     console.log(`Payment succeeded for Order ${orderNumber}`);
                     break;

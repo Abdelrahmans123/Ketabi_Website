@@ -9,7 +9,8 @@ export async function processPayment(order) {
     const paymentIntent = await stripe.paymentIntents.create({    
       amount: Math.round(order.finalPrice * 100),
       currency: 'egp',
-      description: `Order ${order.orderNumber}`,
+      description: `${order.orderNumber}`,
+      metadata: {orderNumber:order.orderNumber},
       receipt_email: order.userEmail,
       payment_method_types: ['card'],
     });

@@ -75,6 +75,23 @@ const userSchema = new mongoose.Schema(
         },
         twoFactorOtp: String,
         twoFactorOtpExpires: Date,
+        library: {
+            type: [
+                {
+                    book: {
+                        type: mongoose.Schema.Types.ObjectId,
+                        ref: "Book",
+                    },
+                    addedAt: {
+                        type: Date,
+                        default: Date.now,
+                    },
+                    _id: false,
+                },
+            ],
+            default: [],
+        },
+
     },
     { timestamps: true }
 );
