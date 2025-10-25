@@ -28,9 +28,12 @@ export const getCart = asyncHandler(async (req, res, next) => {
 });
 
 export const addTocart = asyncHandler(async (req, res, next) => {
-    const { book, quantity, type } = req.body;
+    let { book, quantity, type } = req.body;
     let cart = await Cart.findOne({ user: req.user._id });
     const bookDoc = await findById(Book, book);
+    if (type === itemType.EBOOK) {
+        quantity = 1;
+    }
     if (!bookDoc) {
         const error = new AppError("Book not found", 404);
         return next(error);
@@ -65,7 +68,12 @@ export const addTocart = asyncHandler(async (req, res, next) => {
             (item) => item.book.toString() === book
         );
         if (itemIndex > -1) {
-            cart.items[itemIndex].quantity += quantity;
+            cart.items[itemIndex].type = type;
+            if (cart.items[itemIndex].type === itemType.EBOOK) {
+                cart.items[itemIndex].quantity = 1;
+            } else {
+                cart.items[itemIndex].quantity += quantity;
+            }
         } else {
             cart.items.push({
                 book: bookDoc._id,

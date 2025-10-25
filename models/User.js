@@ -86,10 +86,6 @@ const userSchema = new mongoose.Schema(
             enum: Object.values(providerEnum),
             default: providerEnum.SYSTEM,
         },
-        avatar: {
-            public_id: String,
-            url: String,
-        },
         isFirstLogin: {
             type: Boolean,
             default: false,

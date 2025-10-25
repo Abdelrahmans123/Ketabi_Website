@@ -19,3 +19,23 @@ export const validate = (schema) => {
         next();
     };
 };
+
+export const queryValidate = (schema) => {
+    return (req, res, next) => {
+        const { error } = schema.validate(req.query, { abortEarly:false});
+
+        if (error) {
+            const extractedErrors = error.details.map((err) => ({
+                [err.path.join(".")]: err.message,
+            }));
+
+            const appError = new AppError(
+                "Validation Error",
+                400,
+                extractedErrors
+            );
+            return next(appError);
+        }
+        next();
+    };
+};

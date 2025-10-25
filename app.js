@@ -9,7 +9,6 @@ import HTTPStatusText from "./utils/HTTPStatusText.js";
 import errorHandler from "./middlewares/errorHandler.js";
 import cartRouter from "./routes/cart.js";
 import orderRouter from "./routes/order.js";
-import stripeRouter from "./utils/stripe.js";
 import createSessionMiddleware from "./config/session.js";
 import { morganLogger } from "./middlewares/morgan.js";
 import profileRouter from "./routes/profile.js";
@@ -17,6 +16,7 @@ import { initializeIO } from "./socketIO/index.js";
 import couponRouter from "./routes/coupon.js";
 import publisherRoutes from "./routes/publisher.js";
 import reviewRoutes from "./routes/review.js";
+import stripeRouter from './controllers/webhookController.js';
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import {
@@ -30,6 +30,7 @@ const bootstrap = async () => {
     const PORT = process.env.PORT || 3000;
     await connectMongoDB();
     await connectRedisDB();
+    app.use("/api/webhooks", stripeRouter);
     app.use(express.json());
     const whitelist = [process.env.CLIENT_URL];
     const corsOptions = {
