@@ -2,20 +2,20 @@ import express from "express";
 import { authenticate } from "../middlewares/auth.js";
 import { authorize } from "../middlewares/authorization.js";
 import { validate, queryValidate } from "../middlewares/validation.js";
-import { createOrder, getOrder, getOrdersAdmin } from "../controllers/orderController.js"
-import { createOrderSchema, getOrderSchema, getAllOrdersSchema } from "../validations/order.js";
+import { createOrder, getOrderHistory, getOrdersAdmin } from "../controllers/orderController.js"
+import { createOrderSchema, getUserOrderSchema, getAllOrdersSchema } from "../validations/order.js";
 import { roleEnum } from "../utils/roleEnum.js";
 
 const router = express.Router();
 
-// create order
+// create order for users
 router.post('/', authenticate, validate(createOrderSchema), createOrder);
 
-// get orders
+// get orders for admins
 router.get('/', authenticate, authorize(roleEnum.admin), queryValidate(getAllOrdersSchema), getOrdersAdmin);
 
-// get order
-router.get('/:orderId', authenticate, validate(getOrderSchema), getOrder);
+// get user own orders
+router.get('/order-history', authenticate, queryValidate(getUserOrderSchema), getOrderHistory)
 
 export default router;
 

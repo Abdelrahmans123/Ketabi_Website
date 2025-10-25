@@ -29,7 +29,7 @@ const orderSchema = new mongoose.Schema({
             }
         },
     ],
-    totalPrice: { type: Number, min: 0, required: true, min: 0 },
+    totalPrice: { type: Number, min: 0, required: true },
     coupon: { type: String },
     discountApplied: { type: Number, min: 0, max: 100 },
     finalPrice: { type: Number, min: 0, required: true, min: 0 },
@@ -70,7 +70,7 @@ const Counter = mongoose.model('Counter', counterSchema);
 // Pre-save hooks
 orderSchema.pre('save', async function (next) {
     console.log('order number: ', this.orderNumber);
-    // Generate order number if not present
+    // Generate order number
     if (!this.orderNumber || this.orderNumber === '') {
         try {
             const counter = await Counter.findOneAndUpdate(
@@ -81,34 +81,10 @@ orderSchema.pre('save', async function (next) {
             this.orderNumber = `${counter.seq}${Date.now().toString().slice(-6)}`;
             console.log('Generated order number:', this.orderNumber);
         } catch (error) {
-            console.error('Error generating order number:', err);
-            return next(new Error('Failed to generate order number: ' + err.message));
+            console.error('Error generating order number:', error);
+            return next(new Error('Failed to generate order number: ' + error.message));
         }
     }
-
-    // Validate Shipping Address for Physical Books
-    const hasPhysicalBook = this.items.some(item => item.type === itemType.PHYSICAL);
-    if (hasPhysicalBook && (!this.shippingAddress || !this.shippingAddress.street || !this.shippingAddress.city || !this.shippingAddress.postalCode || !this.shippingAddress.country)) {
-        return next(new Error('Shipping address is required for physical book orders'));
-    }
-
-    // Calculate prices
-    this.totalPrice = Math.round(this.items.reduce((sum, item) => sum + item.price * item.quantity * (1 - item.discount / 100), 0) * 100) / 100;
-    this.finalPrice = Math.round((this.totalPrice - (this.discountApplied / 100 * this.totalPrice)) * 100) / 100;
-    if (this.finalPrice < 0) {
-        return next(new Error('Final price cannot be negative'));
-    }
-
-    // Validate stock for physical books
-    for (const item of this.items) {
-        if (item.type === itemType.PHYSICAL) {
-            const book = await Book.findById(item.book);
-            if (!book || book.stock < item.quantity) {
-                return next(new Error(`Insufficient stock for book ${item.bookTitle}`));
-            }
-        }
-    }
-
     next();
 });
 

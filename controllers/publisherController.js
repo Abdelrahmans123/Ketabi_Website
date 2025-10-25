@@ -1,35 +1,30 @@
-import Publisher from "../models/Publisher.js";
-import { Order } from "../models/Order.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { successResponse } from "../utils/successResponse.js";
 import AppError from "../utils/AppError.js";  
+import User from "../models/User.js";
+import PublisherOrder from "../models/publisherOrder.js";
+import { roleEnum } from "../utils/roleEnum.js";
 
 export const createPublisher = asyncHandler(async (req, res, next) => {
-    const { name, email, contactNumber, address } = req.body;
+    // the id of the user document to give role publisher
+    const { publisherId } = req.body;
 
-    if (!name || !email) {
-        throw new AppError("Name and Email are required", 400);
-    }
+    const userDoc = await User.findById(publisherId);
 
-    const existing = await Publisher.findOne({ email });
-    if (existing) {
-        throw new AppError("Publisher with this email already exists", 400);
-    }
-
-    const publisher = await Publisher.create({ name, email, contactNumber, address });
-
+    if (!userDoc) return next(new AppError("Id not found", 400));
+    userDoc.role = roleEnum.publisher;
+    await userDoc.save()    
     return successResponse({
         res,
         statusCode: 201,
         message: "Publisher created successfully",
-        data: publisher,
+        data: userDoc,
     });
 });
 
 export const getPublishedBooks = asyncHandler(async (req, res, next) => {
     const { publisherId } = req.params;
-    const publisher = await Publisher.findById(publisherId)
-        .populate("booksPublished", "name author price stock");
+    const publisher = await User.findById(publisherId);
 
     if (!publisher) throw new AppError("Publisher not found", 404);
 
@@ -37,22 +32,20 @@ export const getPublishedBooks = asyncHandler(async (req, res, next) => {
         res,
         statusCode: 200,
         message: "Published books retrieved successfully",
-        data: publisher.booksPublished,
+        data: publisher.booksPublished || [],
     });
 });
 
 export const getPublisherOrders = asyncHandler(async (req, res, next) => {
     const { publisherId } = req.params;
-    const orders = await Order.find({ "items.publisher": publisherId })
-        .populate("user", "name email")
-        .populate("items.book", "name");
+    const publisherOrders = await PublisherOrder.find({publisher: publisherId});
 
-    if (!orders.length) throw new AppError("No orders for this publisher", 404);
+    if (!publisherOrders.length) throw new AppError("No orders for this publisher", 404);
 
     return successResponse({
         res,
         statusCode: 200,
         message: "Orders for publisher retrieved successfully",
-        data: orders,
+        data: publisherOrders,
     });
 });

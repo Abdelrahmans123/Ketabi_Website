@@ -91,15 +91,6 @@ export const createOrderSchema = Joi.object({
   coupon: Joi.string().optional()
 });
 
-export const getOrderSchema = Joi.object({
-  orderId: Joi.string()
-    .regex(/^[0-9a-fA-F]{24}$/)
-    .required()
-    .messages({
-      'string.pattern.base': 'Invalid Order ID',
-    }),
-});
-
 export const getAllOrdersSchema = Joi.object({
   user: Joi.string().regex(/^[0-9a-fA-F]{24}$/).optional().messages({ 'string.pattern.base': 'Invalid User ID', }),
   email: Joi.string().email().optional(),
@@ -114,4 +105,14 @@ export const getAllOrdersSchema = Joi.object({
     }),
   sortOrder: Joi.string().valid("asc","dec").default("asc").optional(),
   sortBy: Joi.string().optional().valid('createdAt').default('createdAt'),
+});
+
+export const getUserOrderSchema = Joi.object({
+  user: Joi.string().regex(/^[0-9a-fA-F]{24}$/).required().messages({ 'string.pattern.base': 'Invalid User ID', }),
+  page: Joi.number().integer().min(1).default(1).messages({'number.min': 'Page must be at least 1','number.integer': 'Page must be an integer',}),
+  limit: Joi.number().integer().min(1).max(100).default(10).messages({
+      'number.min': 'Limit must be at least 1',
+      'number.max': 'Limit cannot exceed 100',
+      'number.integer': 'Limit must be an integer',
+    }),
 });

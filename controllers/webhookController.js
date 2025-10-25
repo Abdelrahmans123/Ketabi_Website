@@ -1,13 +1,14 @@
 import express from "express";
 import Stripe from "stripe";
 import { Order } from "../models/Order.js";
-import  User  from "../models/User.js";
+import User from "../models/User.js";
 import Book from "../models/Book.js";
 import Coupon from "../models/Coupon.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { itemType, paymentStatus } from "../utils/orderEnums.js";
 import mongoose from "mongoose";
 import { findOneAndUpdate } from "../models/services/db.js";
+import PublisherOrder from "../models/publisherOrder.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
@@ -57,7 +58,38 @@ router.post(
                             item.paymentStatus = paymentStatus.COMPLETED
                         }
                         await order.save();
-                        
+
+                        // group items by publisher
+                        const groupItemsByPublisher = order.items.reduce((acc, item) => {
+                            const pubId = item.publisher.toString();
+                            if (!acc[pubId]) acc[pubId] = [];
+                            acc[pubId].push(item);
+                            return acc;
+                        }, {});
+
+                        // create one publisher order per publisher
+                        for (const [publisherId, publisherItems] of Object.entries(groupItemsByPublisher)) {
+                            const totalPrice = publisherItems.reduce((sum, item) => sum + (item.price * item.quantity) - ((item.discount || 0) / 100) * item.price * item.quantity,
+                                0
+                            );
+                            await PublisherOrder.create({
+                                publisher: publisherId,
+                                order: order._id,
+                                items: publisherItems.map(item => ({
+                                    book: item.book,
+                                    quantity: item.quantity,
+                                    price: item.price,
+                                    discount: item.discount,
+                                    type: item.type,
+                                    deliveryStatus: item.deliveryStatus,
+                                    paymentStatus: paymentStatus.COMPLETED
+                                })),
+                                coupon: order.coupon || "No Coupon",
+                                couponDiscount: order.discountApplied || 0,
+                                totalPrice
+                            });
+                        }
+
                         // Update stock quantities
                         for (const item of order.items) {
                             if (item.type === itemType.PHYSICAL) {
@@ -96,10 +128,9 @@ router.post(
 
                     // add books to the library
                     try {
-                        const booksToAdd = order.items.filter(item => item.type === itemType.EBOOK).map(item => ({
-                            book: item.book,
-                            addedAt: new Date()
-                        }));
+                        const booksToAdd = order.items
+                            .filter(item => item.type === itemType.EBOOK)
+                            .map(item => item.book);
 
                         console.log('BOoks to add: ', booksToAdd);
 
@@ -111,7 +142,7 @@ router.post(
                                     { $addToSet: { library: { $each: booksToAdd } } } // prevent duplicates
                                 );
                                 console.log("recipient: ", recipient);
-                                
+
                                 if (!recipient) {
                                     console.warn(`Recipient not found: ${order.recipientEmail}`);
                                 } else {

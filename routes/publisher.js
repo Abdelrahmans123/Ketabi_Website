@@ -6,13 +6,14 @@ import {
   getPublisherOrders,
   createPublisher
 } from "../controllers/publisherController.js";
+import { roleEnum } from "../utils/roleEnum.js";
 
 const router = express.Router();
 
-router.post("/", authenticate, authorize("admin"), createPublisher);
+router.post("/", authenticate, authorize(roleEnum.admin), createPublisher);
 
 router.get("/:publisherId/books", authenticate, getPublishedBooks);
 
-router.get("/:publisherId/orders", authenticate, authorize("admin"), getPublisherOrders);
+router.get("/:publisherId/orders", authenticate, authorize(roleEnum.admin), getPublisherOrders);
 
 export default router;

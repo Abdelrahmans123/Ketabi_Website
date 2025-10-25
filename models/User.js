@@ -80,6 +80,9 @@ const userSchema = new mongoose.Schema(
         library: [
             { type: mongoose.Schema.Types.ObjectId, ref: "Book" }
         ],
+        booksPublished: [
+            { type: mongoose.Schema.Types.ObjectId, ref: "Book" }
+        ],
         twoFactorOtpAttempts: { type: Number, default: 0 },
         provider: {
             type: String,
