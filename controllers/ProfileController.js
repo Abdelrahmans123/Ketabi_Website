@@ -59,3 +59,26 @@ export const updateProfile = asyncHandler(async (req, res, next) => {
         },
     });
 });
+
+export const getLibrary = asyncHandler(async (req, res, next) => {
+    const userId = req.user.id;
+    // Get user and populate their library books
+    const user = await User.findById(userId)
+        .populate({
+            path: "library",
+            model: "Book",
+            select: "name author categoryName price type avgRating coverImage", // optional fields
+        })
+        .select("library");
+
+    if (!user) {
+        throw new AppError("User not found", 404);
+    }
+
+    return successResponse({
+        res,
+        statusCode: 200,
+        message: "User library retrieved successfully",
+        data: user.library || [],
+    });
+})
