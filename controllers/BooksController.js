@@ -3,18 +3,18 @@ import { create, findAll, findById, remove } from "../models/services/db.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { successResponse } from "../utils/successResponse.js";
-
-import Publisher from "../models/Publisher.js";
+import User from "../models/User.js";
 //import { uploadBufferToS3 } from "../config/s3.js";
 import { uploadBufferToS3 ,generateSignedDownloadUrl} from "../config/s3.js";
 
 
 export const AddBook = asyncHandler(async (req, res, next) => {
+    const publisherId = req.user.id;
     if (!req.file) {
         const book = await create(Book, req.body);
-
-        await Publisher.findByIdAndUpdate(
-            req.body.publisher,
+        
+        await User.findByIdAndUpdate(
+            publisherId,
             { $addToSet: { booksPublished: book._id } },
             { new: true }
         );
@@ -50,7 +50,7 @@ export const AddBook = asyncHandler(async (req, res, next) => {
     const book = await create(Book, bookData);
 
     if (book.publisher) {
-        await Publisher.findByIdAndUpdate(
+        await User.findByIdAndUpdate(
             book.publisher,
             { $push: { booksPublished: book._id } }
         );

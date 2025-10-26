@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import AppError from "../utils/AppError.js";
 import {
+  deliveryStatus,
   itemType,
   paymentMethods,
   paymentStatus,
@@ -47,7 +48,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
   const userId = req.user.id;
   const userEmail = req.user.email;
-  const username = req.user.username;
+  const userName = req.user.name;
 
   // Validate items
   if (!items || items.length === 0) {
@@ -76,18 +77,13 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
   const couponDiscountPercentage = couponData.discountPercentage;
 
-  // Validate payment method
-  if (!Object.values(paymentMethods).includes(paymentMethod)) {
-    return next(new AppError(`Unsupported payment method: ${paymentMethod}`, 400));
-  }
-
   // Validate gift user email
   if (isGift && recipientEmail === userEmail) {
     return next(new AppError(`Can't gift yourself, please give us gift email.`, 400));
   }
 
   const library = req.user.library || [];
-  const libraryBookIds = library.map(item => item.book.toString());
+  const libraryBookIds = library.map(item => item.toString());
 
   // Calculate total price & check if EBOOK is already in library
   for (const item of items) {
@@ -126,6 +122,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     if (item.type === itemType.EBOOK) {
       item.quantity = 1;
       itemPrice = book.price * 0.45;
+      item.deliveryStatus = deliveryStatus.DELIVERED;
     }
 
     item.publisher = book._doc.publisher;
@@ -165,6 +162,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
   const order = new Order({
     user: userId,
     userEmail,
+    userName,
     items,
     totalPrice,
     coupon: couponData.code,
@@ -185,7 +183,6 @@ export const createOrder = asyncHandler(async (req, res, next) => {
   // Attach Stripe info (still pending)
   order.transactionId = payment.id;
   await order.save();
-  console.log('dude: ', payment.client_secret);
 
   // Clear user's cart immediately
   await findOneAndUpdate(
@@ -253,21 +250,41 @@ export const getOrdersAdmin = asyncHandler(async (req, res, next) => {
 
 });
 
-export const getOrder = asyncHandler(async (req, res, next) => {
-  const { orderId } = req.params;
-  const order = await findOne(
-    Order,
-    { _id: orderId, user: req.user.id },
-    {},
-    "items.book"
-  );
-  if (!order || order.user !== req.user.id) {
-    const error = new AppError("Order not found", 404);
+export const getOrderHistory = asyncHandler(async (req, res, next) => {
+  const {user, page = 1, limit = 5} = req.query;
+  
+  if (user !== req.user.id){
+    const error = new AppError("Nothing to show here", 404);
     return next(error);
   }
-  res.status(200).json({
-    status: "Success",
-    message: "Order was retrieved successfully",
-    data: order,
+
+  // Pagination logic
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+
+  const orders = await Order.find({user}).skip(skip).limit(parseInt(limit));
+  const total = await Order.countDocuments(user);
+
+  if (!orders || orders.length === 0) {
+    return successResponse({
+      res,
+      statusCode: 200,
+      message: "No orders Found",
+      data: [],
+    });
+  }
+
+  return successResponse({
+    res,
+    statusCode: 200,
+    message: "Orders retrieved successfully",
+    data: {
+      orders: orders,
+      pagination: {
+        total,
+        page: parseInt(page),
+        pages: Math.ceil(total / limit),
+      },
+    },
   });
-});
+
+})

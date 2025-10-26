@@ -1,0 +1,20 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "/home/abdelghafaar/ITI/Projects/Ketabi_Website/logs/.b4717b314dd21e5a3ec05563c86be5a912e690bf-audit.json",
+    "files": [
+        {
+            "date": 1761399083487,
+            "name": "/home/abdelghafaar/ITI/Projects/Ketabi_Website/logs/error-2025-10-25.log",
+            "hash": "e4fc0e87087eecf987a6446c06cd292877b7f2f9ff7ecc6908dbb2ea3f7bd8aa"
+        },
+        {
+            "date": 1761427075976,
+            "name": "/home/abdelghafaar/ITI/Projects/Ketabi_Website/logs/error-2025-10-26.log",
+            "hash": "017b48b770c735c88d15d93989d972d6825739016da6b7e511964b784114e538"
+        }
+    ],
+    "hashType": "sha256"
+}
