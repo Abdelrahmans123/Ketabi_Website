@@ -137,39 +137,43 @@ router.post(
 
                     // add books to the library
                     try {
-                        const booksToAdd = order.items
+                        const allBooks = order.items.map(item => item.book);
+                        const ebooks = order.items
                             .filter(item => item.type === itemType.EBOOK)
                             .map(item => item.book);
 
-                        console.log('BOoks to add: ', booksToAdd);
+                        console.log("Books to add (all):", allBooks);
+                        console.log("Books to add (ebooks):", ebooks);
 
-                        if (booksToAdd.length > 0) {
-                            if (order.isGift && order.recipientEmail) {
-                                const recipient = await findOneAndUpdate(
-                                    User,
-                                    { email: order.recipientEmail },
-                                    { $addToSet: { library: { $each: booksToAdd } } } // prevent duplicates
-                                );
-                                console.log("recipient: ", recipient);
+                        const updateUserBooks = async (email) => {
+                            const update = {
+                                $addToSet: {
+                                    purchasedBooks: { $each: allBooks },
+                                },
+                            };
 
-                                if (!recipient) {
-                                    console.warn(`Recipient not found: ${order.recipientEmail}`);
-                                } else {
-                                    console.log(`Added ${booksToAdd.length} books to ${recipient.email}'s library (gift).`);
-                                }
-                            } else {
-                                const buyer = await findOneAndUpdate(
-                                    User,
-                                    { email: order.userEmail },
-                                    { $addToSet: { library: { $each: booksToAdd } } }
-                                );
-                                console.log("buyer: ", buyer);
-                                if (!buyer) {
-                                    console.warn(`Buyer not found: ${order.userEmail}`);
-                                } else {
-                                    console.log(`Added ${booksToAdd.length} books to ${buyer.email}'s library.`);
-                                }
+                            if (ebooks.length > 0) {
+                                update.$addToSet.library = { $each: ebooks };
                             }
+
+                            const user = await findOneAndUpdate(User, { email }, update);
+
+                            if (!user) {
+                                console.warn(`User not found: ${email}`);
+                            } else {
+                                console.log(
+                                    `Added ${allBooks.length} books to ${user.email}'s purchasedBooks` +
+                                    (ebooks.length ? ` and ${ebooks.length} to library` : "") +
+                                    "."
+                                );
+                            }
+                        };
+
+                        // gift vs. normal purchase
+                        if (order.isGift && order.recipientEmail) {
+                            await updateUserBooks(order.recipientEmail);
+                        } else {
+                            await updateUserBooks(order.userEmail);
                         }
                     } catch (error) {
                         console.error(`Error adding books to library for Order ${order.orderNumber}: ${error.message}`);

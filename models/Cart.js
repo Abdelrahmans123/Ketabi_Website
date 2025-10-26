@@ -27,7 +27,7 @@ cartSchema.pre('save', async function (next) {
             return next(new Error(`Book with ID ${item.book} not found`));
         }
         if(item.type === itemType.PHYSICAL && book.stock < item.quantity) {
-            return next(new Error(`Insufficient stock for book ${item.bookTitle} with id ${item._id}`));
+            return next(new Error(`Insufficient stock for book ${item.name} with id ${item._id}`));
         }
         if(item.type === itemType.EBOOK){
             item.price = book.price * 0.45;
