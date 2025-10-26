@@ -10,7 +10,7 @@ import Book from "../models/Book.js";
 export const getCart = asyncHandler(async (req, res, next) => {
     const cart = await findOne(Cart, { user: req.user._id }, {}, "items.book");
     if (!cart) {
-        const cart = new Cart({ user: req.user._id, items: [], totalPrice: 0 });
+        const cart = new Cart({ user: req.user._id, items: [] });
         await create(Cart, cart);
         return successResponse({
             res,
@@ -56,12 +56,7 @@ export const addTocart = asyncHandler(async (req, res, next) => {
                             ? bookDoc.price * 0.45
                             : bookDoc.price,
                 },
-            ],
-            totalPrice:
-                quantity *
-                (type === itemType.EBOOK
-                    ? bookDoc.price * 0.45
-                    : bookDoc.price),
+            ]
         });
     } else {
         const itemIndex = cart.items.findIndex(
@@ -98,7 +93,13 @@ export const addTocart = asyncHandler(async (req, res, next) => {
 
 export const updateCart = asyncHandler(async (req, res, next) => {
     const book = req.params.bookId.trim();
-    const { quantity } = req.body;
+    const { quantity, type } = req.body;
+    
+    if (!quantity && !type){
+        const error = new AppError("missing properites to update", 404);
+        return next(error);
+    }
+
     let cart = await Cart.findOne({ user: req.user._id });
     if (!cart) {
         const error = new AppError("Cart not found", 404);
@@ -126,7 +127,21 @@ export const updateCart = asyncHandler(async (req, res, next) => {
         );
         return next(error);
     }
-    cart.items[itemIndex].quantity = quantity;
+
+
+    if (type === itemType.EBOOK) {
+        cart.items[itemIndex].quantity = 1;
+        cart.items[itemIndex].type = itemType.EBOOK;
+    } else if (type === itemType.PHYSICAL) {
+        cart.items[itemIndex].type = itemType.PHYSICAL;
+    } else {
+        if (cart.items[itemIndex].type === itemType.EBOOK) {
+            cart.items[itemIndex].quantity = 1;
+        } else {
+            cart.items[itemIndex].quantity = quantity;
+        }
+    }
+
     await cart.save();
     return successResponse({
         res,
