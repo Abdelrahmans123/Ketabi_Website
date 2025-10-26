@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import AppError from "../utils/AppError.js";
 import {
+  deliveryStatus,
   itemType,
   paymentMethods,
   paymentStatus,
@@ -47,6 +48,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
   const userId = req.user.id;
   const userEmail = req.user.email;
+  const userName = req.user.name;
 
   // Validate items
   if (!items || items.length === 0) {
@@ -120,6 +122,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     if (item.type === itemType.EBOOK) {
       item.quantity = 1;
       itemPrice = book.price * 0.45;
+      item.deliveryStatus = deliveryStatus.DELIVERED;
     }
 
     item.publisher = book._doc.publisher;
@@ -159,6 +162,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
   const order = new Order({
     user: userId,
     userEmail,
+    userName,
     items,
     totalPrice,
     coupon: couponData.code,

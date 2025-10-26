@@ -4,7 +4,8 @@ import { authorize } from "../middlewares/authorization.js";
 import {
   getPublishedBooks,
   getPublisherOrders,
-  createPublisher
+  createPublisher,
+  updatePublisherOrder
 } from "../controllers/publisherController.js";
 import { roleEnum } from "../utils/roleEnum.js";
 
@@ -12,8 +13,11 @@ const router = express.Router();
 
 router.post("/", authenticate, authorize(roleEnum.admin), createPublisher);
 
-router.get("/:publisherId/books", authenticate, getPublishedBooks);
+router.get("/:publisherId/books", getPublishedBooks);
 
-router.get("/:publisherId/orders", authenticate, authorize(roleEnum.admin), getPublisherOrders);
+router.get("/:publisherId/orders", authenticate, authorize(roleEnum.admin, roleEnum.publisher), getPublisherOrders);
+
+router.patch("/:publisherOrderId", authenticate, authorize(roleEnum.publisher, roleEnum.admin), updatePublisherOrder);
+
 
 export default router;

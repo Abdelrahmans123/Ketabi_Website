@@ -5,7 +5,7 @@ import User from "../models/User.js";
 import Book from "../models/Book.js";
 import Coupon from "../models/Coupon.js";
 import { sendEmail } from "../utils/sendEmail.js";
-import { itemType, paymentStatus } from "../utils/orderEnums.js";
+import { deliveryStatus, itemType, paymentStatus } from "../utils/orderEnums.js";
 import mongoose from "mongoose";
 import { findOneAndUpdate } from "../models/services/db.js";
 import PublisherOrder from "../models/publisherOrder.js";
@@ -54,8 +54,11 @@ router.post(
                     session.withTransaction(async () => {
                         order.paymentStatus = paymentStatus.COMPLETED;
                         order.transactionId = paymentIntent.id;
+                        let isShippingNeeded = false;
                         for (const item of order.items) {
                             item.paymentStatus = paymentStatus.COMPLETED
+                            if (item.type === itemType.EBOOK) item.deliveryStatus = deliveryStatus.DELIVERED;
+                            else isShippingNeeded = true;
                         }
                         await order.save();
 
@@ -72,9 +75,11 @@ router.post(
                             const totalPrice = publisherItems.reduce((sum, item) => sum + (item.price * item.quantity) - ((item.discount || 0) / 100) * item.price * item.quantity,
                                 0
                             );
-                            await PublisherOrder.create({
+                            const pubOrder = {
                                 publisher: publisherId,
                                 order: order._id,
+                                name: order.userName,
+                                email: order.userEmail,
                                 items: publisherItems.map(item => ({
                                     book: item.book,
                                     quantity: item.quantity,
@@ -87,7 +92,11 @@ router.post(
                                 coupon: order.coupon || "No Coupon",
                                 couponDiscount: order.discountApplied || 0,
                                 totalPrice
-                            });
+                            }
+                            if (isShippingNeeded) {
+                                pubOrder.shippingAddress = order.shippingAddress;
+                            }
+                            await PublisherOrder.create(pubOrder);
                         }
 
                         // Update stock quantities
