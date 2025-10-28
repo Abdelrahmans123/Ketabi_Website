@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "npm install @google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import Book from "../models/Book.js";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
