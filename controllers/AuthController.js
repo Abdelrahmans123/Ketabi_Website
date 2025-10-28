@@ -325,7 +325,7 @@ export const confirmEmail = asyncHandler(async (req, res, next) => {
         confirmEmailOtp: null,
         confirmEmailOtpExpires: null,
     };
-    await updateOne({ model: User, filter: { _id: user._id }, data });
+    await updateOne({ model: User, query: { _id: user._id }, data });
     return successResponse({
         res,
         statusCode: 200,
@@ -368,7 +368,7 @@ export const login = asyncHandler(async (req, res, next) => {
         await redisClient.set(`user:${user._id}:activeToken`, jwtId);
         await updateOne({
             model: User,
-            filter: { _id: user._id },
+            query: { _id: user._id },
             data: { isFirstLogin: false },
         });
         return successResponse({
@@ -441,7 +441,7 @@ export const confirmLogin = asyncHandler(async (req, res, next) => {
     if (!isOtpValid) {
         await updateOne({
             model: User,
-            filter: { _id: user._id },
+            query: { _id: user._id },
             data: { $inc: { twoFactorOtpAttempts: 1 } },
         });
         return next(new AppError("Invalid OTP", 400));
@@ -454,7 +454,7 @@ export const confirmLogin = asyncHandler(async (req, res, next) => {
         isTwoFactorAuthenticated: true,
         lastLoginAt,
     };
-    await updateOne({ model: User, filter: { _id: user._id }, data });
+    await updateOne({ model: User, query: { _id: user._id }, data });
     const jwtId = nanoid().toString();
     const oldTokenKey = await redisClient.get(`user:${user._id}:activeToken`);
     if (oldTokenKey) {
@@ -496,7 +496,7 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
         resetPasswordOtp: otpHash,
         resetPasswordOtpExpires: otpExpiry,
     };
-    await updateOne({ model: User, filter: { _id: user._id }, data });
+    await updateOne({ model: User, query: { _id: user._id }, data });
     await sendEmail({
         to: email,
         subject: "Reset Your Password",
@@ -531,7 +531,7 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
     const hashedPassword = generateHash({ plainText: newPassword });
     await updateOne({
         model: User,
-        filter: { _id: user._id },
+        query: { _id: user._id },
         data: {
             password: hashedPassword,
             resetPasswordOtp: null,
@@ -557,7 +557,7 @@ export const logout = asyncHandler(async (req, res, next) => {
             }
             await updateOne({
                 model: User,
-                filter: { _id: req.user.id },
+                query: { _id: req.user.id },
                 data: { changeCredentialTime: new Date() },
             });
             break;
@@ -590,7 +590,7 @@ export const resendConfirmationOtp = asyncHandler(async (req, res, next) => {
     const otpExpiry = Date.now() + 10 * 60 * 1000;
     await updateOne({
         model: User,
-        filter: { _id: user._id },
+        query: { _id: user._id },
         data: { confirmEmailOtp: otpHash, confirmEmailOtpExpires: otpExpiry },
     });
     await sendEmail({
