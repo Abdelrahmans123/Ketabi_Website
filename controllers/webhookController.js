@@ -9,6 +9,8 @@ import { deliveryStatus, itemType, paymentStatus } from "../utils/orderEnums.js"
 import mongoose from "mongoose";
 import { findOneAndUpdate } from "../models/services/db.js";
 import PublisherOrder from "../models/publisherOrder.js";
+import Sale from "../models/Sale.js";
+
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
@@ -349,7 +351,32 @@ You’ll receive an update shortly.
                     ...(isShippingNeeded && { shippingAddress: order.shippingAddress }),
                 };
 
-                await PublisherOrder.create([pubOrder], { session });
+                const [createdPubOrder] = await PublisherOrder.create([pubOrder], { session });
+
+                // Record in Sales
+                const saleItems = items.map((item) => ({
+                    book: item.book,
+                    quantity: item.quantity,
+                    price: item.price,
+                    discount: item.discount,
+                    type: item.type,
+                    total:
+                        item.price * item.quantity -
+                        ((item.discount || 0) / 100) * item.price * item.quantity,
+                }));
+
+                await Sale.create(
+                    [
+                        {
+                            publisher: publisherId,
+                            publisherOrder: createdPubOrder._id,
+                            order: order._id,
+                            items: saleItems,
+                            totalAmount: saleItems.reduce((sum, i) => sum + i.total, 0),
+                        },
+                    ],
+                    { session }
+                );
             }
 
             // Atomic stock update: ensure stock doesn’t go below 0

@@ -29,6 +29,7 @@ import {
 import { apiLimiter } from "./middlewares/rateLimiter.js";
 import { defineCors } from "./middlewares/cors.js";
 import { notFoundHandler } from "./middlewares/notFound.js";
+import salesRouter from "./routes/adminSales.js";
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
@@ -56,7 +57,7 @@ const bootstrap = async () => {
     app.use("/api/tickets", ticketRoutes);
     app.use("/api/reviews", reviewRoutes);
     app.use("/api/admin/refunds", adminRefundRoutes);
-
+    app.use("/api/admin/sales", salesRouter);
     app.post('/api/chat', async (req, res) => {
         const { message } = req.body;
 
