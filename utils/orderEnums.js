@@ -12,6 +12,7 @@ export const paymentStatus = {
     COMPLETED: "Completed",
     FAILED: "Failed",
     REFUNDED: "Refunded",
+    EXPIRED: "Expired"
 };
 
 export const paymentMethods = { 

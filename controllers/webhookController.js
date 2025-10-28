@@ -17,7 +17,6 @@ router.post(
     "/stripe-webhook",
     express.raw({ type: "application/json" }),
     async (req, res) => {
-        console.log('it is working!');
         const sig = req.headers["stripe-signature"];
         let event;
 
@@ -35,18 +34,51 @@ router.post(
         const paymentIntent = event.data.object;
         const orderNumber = paymentIntent?.metadata?.orderNumber;
 
-        if (!orderNumber) {
-            console.warn("No order number found in payment description.");
-            return res.status(200).send("No linked order.");
-        }
+        // responding to stripe
+        res.status(200).json({ received: true });
 
-        const order = await Order.findOne({ orderNumber });
-        if (!order) {
-            console.warn(`No matching order found for ${orderNumber}`);
-            return res.status(200).send("Order not found.");
-        }
+        (async () => {
+            try {
+                const order = await Order.findOne({ orderNumber });
+                if (!order) {
+                    console.warn(`No order found for ${orderNumber}`);
+                    return;
+                }
 
-        try {
+                switch (event.type) {
+                    case "payment_intent.succeeded":
+                        await handleSuccessfulPayment(order, paymentIntent);
+                        break;
+
+                    case "payment_intent.payment_failed":
+                    case "payment_intent.canceled":
+                        for (const item of order.items) {
+                            if (item.type === itemType.PHYSICAL) {
+                                await Book.updateOne(
+                                    { _id: item.book },
+                                    { $inc: { stock: item.quantity } }
+                                );
+                            }
+                        }
+                        order.paymentStatus = paymentStatus.FAILED;
+                        await order.save();
+
+                        await sendEmail({
+                            to: order.userEmail,
+                            subject: "Payment Failed",
+                            text: `Your payment for Order ${order.orderNumber} failed.`,
+                        });
+                        break;
+
+                    default:
+                        console.log(`Unhandled Stripe event: ${event.type}`);
+                }
+            } catch (err) {
+                console.error(`Async webhook task error: ${err.message}`);
+            }
+        })();
+
+        /* try {
             switch (event.type) {
                 //  Successful payment
                 case "payment_intent.succeeded": {
@@ -131,7 +163,7 @@ router.post(
                         await sendEmail({
                             to: order.recipientEmail,
                             subject: "Gift Received",
-                            text: `You received a gift from ${order.userEmail}! Check your Ketabi library.`
+                            text: `You received a gift from ${order.userEmail}! with message: ${order.personalizedMessage || 'Congratulations!'}.`
                         });
                     }
 
@@ -217,8 +249,216 @@ router.post(
         } catch (err) {
             console.error(`Webhook processing error: ${err.message}`);
             res.status(500).send("Internal webhook error.");
-        }
+        } */
     }
 );
+
+async function handleSuccessfulPayment(order, paymentIntent) {
+
+    // Prevent processing expired or already-paid orders
+    if (
+        order.paymentStatus === paymentStatus.COMPLETED ||
+        order.paymentStatus === paymentStatus.EXPIRED
+    ) {
+        console.warn(
+            `⚠️ Payment received for order ${order._id} but it's already ${order.paymentStatus}. Ignoring.`
+        );
+        return;
+    }
+
+    if (order.expiresAt && order.expiresAt < new Date()) {
+        console.warn(`⚠️ Payment received for expired order ${order._id}. Ignoring.`);
+
+        await RefundRequest.create({
+            order: order._id,
+            user: order.user,
+            paymentIntentId: paymentIntent.id,
+            reason: "EXPIRED_ORDER",
+            amount: paymentIntent.amount / 100,
+            status: "PENDING",
+        });
+
+        await sendEmail({
+            to: order.userEmail,
+            subject: "Payment Pending Review - Order Expired",
+            text: `
+Hi ${order.userName},
+
+We received your payment for Order #${order.orderNumber}, but the order had already expired.
+
+A refund request has been automatically logged and is pending review by our support team.
+You’ll receive an update shortly.
+
+- The Ketabi Team
+`,
+        });
+
+        return;
+    }
+
+    const session = await mongoose.startSession();
+    try {
+        await session.withTransaction(async () => {
+            order.paymentStatus = paymentStatus.COMPLETED;
+            order.transactionId = paymentIntent.id;
+
+            let isShippingNeeded = false;
+            for (const item of order.items) {
+                item.paymentStatus = paymentStatus.COMPLETED;
+                if (item.type === itemType.EBOOK)
+                    item.deliveryStatus = deliveryStatus.DELIVERED;
+                else isShippingNeeded = true;
+            }
+
+            await order.save({ session });
+
+            // Group items by publisher
+            const grouped = order.items.reduce((acc, item) => {
+                const pubId = item.publisher.toString();
+                if (!acc[pubId]) acc[pubId] = [];
+                acc[pubId].push(item);
+                return acc;
+            }, {});
+
+            for (const [publisherId, items] of Object.entries(grouped)) {
+                const totalPrice = items.reduce(
+                    (sum, item) =>
+                        sum +
+                        item.price * item.quantity -
+                        ((item.discount || 0) / 100) * item.price * item.quantity,
+                    0
+                );
+
+                const pubOrder = {
+                    publisher: publisherId,
+                    order: order._id,
+                    name: order.userName,
+                    email: order.userEmail,
+                    items: items.map((item) => ({
+                        book: item.book,
+                        quantity: item.quantity,
+                        price: item.price,
+                        discount: item.discount,
+                        type: item.type,
+                        deliveryStatus: item.deliveryStatus,
+                        paymentStatus: paymentStatus.COMPLETED,
+                    })),
+                    coupon: order.coupon || "No Coupon",
+                    couponDiscount: order.discountApplied || 0,
+                    totalPrice,
+                    ...(isShippingNeeded && { shippingAddress: order.shippingAddress }),
+                };
+
+                await PublisherOrder.create([pubOrder], { session });
+            }
+
+            // Atomic stock update: ensure stock doesn’t go below 0
+            for (const item of order.items) {
+                if (item.type === itemType.PHYSICAL) {
+                    const result = await Book.updateOne(
+                        { _id: item.book, stock: { $gte: item.quantity } },
+                        { $inc: { stock: -item.quantity } },
+                        { session }
+                    );
+                    if (result.matchedCount === 0) {
+                        throw new Error(`Insufficient stock for book ${item.book}`);
+                    }
+                }
+            }
+
+            // Coupon usage
+            if (order.coupon && order.coupon !== "No Coupon") {
+                await Coupon.findOneAndUpdate(
+                    { code: order.coupon },
+                    { $inc: { numOfUsers: 1 } },
+                    { session }
+                );
+            }
+        });
+    } finally {
+        await session.endSession();
+    }
+
+    // book list for email 
+    const bookIds = order.items.map(item => item.book);
+    const books = await Book.find({ _id: { $in: bookIds } }).select("title");
+    const bookNames = books.map(b => `- ${b.title}`).join("\n");
+
+    // Adjust user info if this is a gift
+    let buyerName = order.userName;
+    let buyerEmail = order.userEmail;
+    let recipientName = buyerName;
+    let recipientEmail = buyerEmail;
+
+    if (order.isGift && order.recipientEmail) {
+        recipientEmail = order.recipientEmail;
+        recipientName = order.recipientName || "Gift Recipient";
+        order.userName = recipientName;
+        order.userEmail = recipientEmail;
+    }
+
+    // 
+    // Email to buyer
+    sendEmail({
+        to: buyerEmail,
+        subject: "Order Confirmation",
+        text: `
+Hi ${buyerName},
+
+Your payment for Order #${order.orderNumber} was successful. 🎉
+
+Here are the books you purchased:
+${bookNames}
+
+${order.isGift
+                ? `\nYou sent these as a gift to ${recipientEmail}.`
+                : "\nThank you for your purchase!"
+            }
+
+- The Ketabi Team
+`,
+    }).catch(console.error);
+
+    // Gift email
+    if (order.isGift && order.recipientEmail) {
+        sendEmail({
+            to: recipientEmail,
+            subject: "🎁 You've received a gift!",
+            text: `
+Hi ${recipientName},
+
+You’ve received the following books as a gift from ${buyerEmail}:
+
+${bookNames}
+
+${order.personalizedMessage
+                    ? `\nPersonal message: "${order.personalizedMessage}"`
+                    : ""
+                }
+
+Enjoy your reading!
+- The Ketabi Team
+`,
+        }).catch(console.error);
+    }
+
+    // library update 
+    updateUserBooks(order).catch(console.error);
+}
+
+async function updateUserBooks(order) {
+    const allBooks = order.items.map((item) => item.book);
+    const ebooks = order.items
+        .filter((item) => item.type === itemType.EBOOK)
+        .map((item) => item.book);
+
+    const update = {
+        $addToSet: { purchasedBooks: { $each: allBooks } },
+    };
+    if (ebooks.length) update.$addToSet.library = { $each: ebooks };
+
+    const email = order.isGift ? order.recipientEmail : order.userEmail;
+    await findOneAndUpdate(User, { email }, update);
+}
 
 export default router;

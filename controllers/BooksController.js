@@ -161,14 +161,36 @@ export const deleteBook = asyncHandler(async (req, res, next) => {
 
 export const downloadBook = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
+    const userId = req.user._id;
 
-    const book = await Book.findById(id);
-    if (!book || !book.pdf?.key) {
-        const error = new AppError("Book or file not found", 404);
-        return next(error);
+    // Check if the book is in the user's library
+    const user = await User.findById(userId).select("library");
+    if (!user) {
+        return next(new AppError("User not found", 404));
     }
 
+    const hasBook = user.library.some(
+        (bookId) => bookId.toString() === id.toString()
+    );
+
+    if (!hasBook) {
+        return next(
+            new AppError(
+                "You do not own this eBook. Please purchase it before downloading.",
+                403
+            )
+        );
+    }
+
+    // Fetch the book details
+    const book = await Book.findById(id);
+    if (!book || !book.pdf?.key) {
+        return next(new AppError("Book or file not found", 404));
+    }
+
+    // Generate temporary signed URL for download (expires in 60 seconds)
     const signedUrl = await generateSignedDownloadUrl(book.pdf.key, 60);
 
     return res.redirect(signedUrl);
 });
+

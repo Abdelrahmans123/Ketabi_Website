@@ -19,11 +19,13 @@ import reviewRoutes from "./routes/review.js";
 import stripeRouter from './controllers/webhookController.js';
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
+import adminRefundRoutes from "./routes/adminRefund.js";
 import {
     cleanupOldCartsJob,
     couponExpirationJob,
     deleteUnconfirmedUsersJob,
     inactiveUserReminderJob,
+    orderCleanupJob
 } from "./jobs/cronJobs.js";
 const bootstrap = async () => {
     const app = express();
@@ -66,6 +68,7 @@ const bootstrap = async () => {
     app.use("/api/tickets", ticketRoutes);
     app.use("/api/users", profileRouter);
     app.use("/api/reviews", reviewRoutes);
+    app.use("/api/admin/refunds", adminRefundRoutes);
     app.all("/{*dummy}", (req, res, next) => {
         res.status(404).json({
             message: "Route Not Found",
@@ -82,6 +85,7 @@ const bootstrap = async () => {
         deleteUnconfirmedUsersJob();
         inactiveUserReminderJob();
         cleanupOldCartsJob();
+        orderCleanupJob();
     });
     initializeIO(server);
 };

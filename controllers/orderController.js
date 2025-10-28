@@ -95,13 +95,25 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     }
 
     // Ebook found in library
-    if (item.type === itemType.EBOOK && libraryBookIds.includes(item.book)) {
+    if (!isGift && item.type === itemType.EBOOK && libraryBookIds.includes(item.book)) {
       return next(new AppError(`${book.name} was found in your library`, 400));
     }
 
     // Check physical book   stock
-    if (item.type === itemType.PHYSICAL && item.quantity > book.stock) {
-      return next(new AppError(`Not enough stock for ${book.name} with id: ${book._id}`, 400));
+    if (item.type === itemType.PHYSICAL) {
+      if (item.quantity > book.stock) {
+        return next(new AppError(`Not enough stock for ${book.name}`, 400));
+      }
+
+      // Reserve stock atomically
+      const result = await Book.updateOne(
+        { _id: book._id, stock: { $gte: item.quantity } },
+        { $inc: { stock: -item.quantity } }
+      );
+
+      if (result.matchedCount === 0) {
+        return next(new AppError(`Insufficient stock for ${book.name}`, 400));
+      }
     }
 
     // Check shipping info if physical
@@ -117,7 +129,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
       );
     }
 
-    // Handle ebook price
+    // Handle ebooks
     let itemPrice = book.price;
     if (item.type === itemType.EBOOK) {
       item.quantity = 1;
@@ -251,9 +263,9 @@ export const getOrdersAdmin = asyncHandler(async (req, res, next) => {
 });
 
 export const getOrderHistory = asyncHandler(async (req, res, next) => {
-  const {user, page = 1, limit = 5} = req.query;
-  
-  if (user !== req.user.id){
+  const { user, page = 1, limit = 5 } = req.query;
+
+  if (user !== req.user.id) {
     const error = new AppError("Nothing to show here", 404);
     return next(error);
   }
@@ -261,7 +273,7 @@ export const getOrderHistory = asyncHandler(async (req, res, next) => {
   // Pagination logic
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
-  const orders = await Order.find({user}).skip(skip).limit(parseInt(limit));
+  const orders = await Order.find({ user }).skip(skip).limit(parseInt(limit));
   const total = await Order.countDocuments(user);
 
   if (!orders || orders.length === 0) {

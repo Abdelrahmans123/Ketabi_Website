@@ -12,7 +12,7 @@ const counterSchema = new mongoose.Schema({
 const orderSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     userEmail: { type: String, required: true },
-    userName: {type: String, required: true},
+    userName: { type: String, required: true },
     orderNumber: { type: String, unique: true },
     items: [
         {
@@ -56,6 +56,11 @@ const orderSchema = new mongoose.Schema({
     isGift: { type: Boolean, default: false },
     recipientEmail: { type: String, default: null },
     personalizedMessage: { type: String },
+    expiresAt: {
+        type: Date,
+        default: () => new Date(Date.now() + 15 * 60 * 1000) 
+    },
+
 }, { timestamps: true });
 
 
@@ -65,6 +70,8 @@ orderSchema.index({ user: 1 });
 orderSchema.index({ userEmail: 1 });
 orderSchema.index({ orderStatus: 1 });
 orderSchema.index({ paymentStatus: 1 });
+orderSchema.index({ expiresAt: 1 })
+
 
 const Counter = mongoose.model('Counter', counterSchema);
 

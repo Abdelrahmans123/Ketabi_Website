@@ -14,6 +14,6 @@ router.get("/List-Books", getBooks);
 router.get("/Get-Book/:id", getBookByID);
 router.put("/Update-Book/:id", authenticate, authorize("admin", "author"), validate(updateSchema), updateBook);
 router.delete("/Delete/:id",authenticate,authorize("admin", "author"),deleteBook);
-router.get("/Download-Book/:id", downloadBook);
+router.get("/Download-Book/:id", authenticate, downloadBook);
 
 export default router;
