@@ -6,12 +6,13 @@ import upload from "../middlewares/upload.js";
 import {validate}  from "../middlewares/validation.js";
 import { createSchema, updateSchema } from "../validations/book.js";
 import { roleEnum } from "../utils/roleEnum.js";
+import { cacheMiddleware } from "../middlewares/cach.js";
 
 const router = express.Router();
 
 router.post("/Create-Book",authenticate, authorize(roleEnum.publisher),validate(createSchema), upload.single("pdf"),AddBook);
-router.get("/List-Books", getBooks);
-router.get("/Get-Book/:id", getBookByID);
+router.get("/List-Books",cacheMiddleware, getBooks);
+router.get("/Get-Book/:id",cacheMiddleware, getBookByID);
 router.put("/Update-Book/:id", authenticate, authorize("admin", "author"), validate(updateSchema), updateBook);
 router.delete("/Delete/:id",authenticate,authorize("admin", "author"),deleteBook);
 router.get("/Download-Book/:id", authenticate, downloadBook);
