@@ -1,5 +1,11 @@
 import Book from "../models/Book.js";
-import { create, findAll, findById, remove } from "../models/services/db.js";
+import {
+    create,
+    findAll,
+    findById,
+    findByIdAndUpdate,
+    remove,
+} from "../models/services/db.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { successResponse } from "../utils/successResponse.js";
@@ -16,14 +22,12 @@ import {
 export const AddBook = asyncHandler(async (req, res, next) => {
     const publisherId = req.user.id;
     if (!req.file) {
-        const book = await create(Book, req.body);
-
-        await User.findByIdAndUpdate(
-            publisherId,
-            { $addToSet: { booksPublished: book._id } },
-            { new: true }
-        );
-
+        const book = await create({ model: Book, data: req.body });
+        await findByIdAndUpdate({
+            model: User,
+            id: publisherId,
+            data: { $addToSet: { booksPublished: book._id } },
+        });
         return successResponse({
             res,
             statusCode: 201,
@@ -52,15 +56,15 @@ export const AddBook = asyncHandler(async (req, res, next) => {
         },
     };
 
-    const book = await create(Book, bookData);
+    const book = await create({ model: Book, data: bookData });
 
     if (book.publisher) {
-        await User.findByIdAndUpdate(book.publisher, {
-            $push: { booksPublished: book._id },
+        await findByIdAndUpdate({
+            model: User,
+            id: book.publisher,
+            data: { $push: { booksPublished: book._id } },
         });
     }
-
-    // Notify users about new edition from this author
     if (book.author) {
         await notifyNewEdition(book._id, book.author);
     }
@@ -90,7 +94,14 @@ export const getBooks = asyncHandler(async (req, res, next) => {
         sort = { createdAt: -1 };
     }
 
-    const books = await Book.find(filter).skip(skip).limit(limit).sort(sort);
+    // const books = await Book.find(filter).skip(skip).limit(limit).sort(sort);
+    const books = await findAll({
+        model: Book,
+        filter,
+        skip,
+        limit,
+        sort,
+    });
     const totalBooks = await Book.countDocuments(filter);
 
     if (!books.length) {
@@ -118,7 +129,7 @@ export const getBooks = asyncHandler(async (req, res, next) => {
 
 export const getBookByID = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
-    const book = await findById(Book, id);
+    const book = await findById({ model: Book, id });
     if (!book) {
         const error = AppError("Book Not Found", 404);
         return next(error);
@@ -134,27 +145,27 @@ export const updateBook = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
 
     // Get the old book data before update
-    const oldBook = await Book.findById(id);
+    const oldBook = await findById({ model: Book, id });
     if (!oldBook) {
         const error = AppError("Book Not Found", 404);
         return next(error);
     }
 
     // Update the book
-    const updatedBook = await Book.findByIdAndUpdate(id, req.body, {
-        new: true,
+    // const updatedBook = await Book.findByIdAndUpdate(id, req.body, {
+    //     new: true,
+    // });
+    const updatedBook = await findByIdAndUpdate({
+        model: Book,
+        id,
+        data: req.body,
     });
-
-    // Check for status change to "in stock" and notify users
     if (
         oldBook.status === "out of stock" &&
         updatedBook.status === "in stock"
     ) {
-        // Notify users who have this book in their wishlist
         await notifyBookBackInStock(id);
     }
-
-    // Check for price drop and notify users
     if (
         req.body.price !== undefined &&
         updatedBook.price < oldBook.price &&
@@ -162,8 +173,6 @@ export const updateBook = asyncHandler(async (req, res, next) => {
     ) {
         await notifyPriceDrop(id, oldBook.price, updatedBook.price);
     }
-
-    // Check for low stock and notify users
     if (
         req.body.stock !== undefined &&
         updatedBook.stock <= 5 &&
@@ -172,7 +181,6 @@ export const updateBook = asyncHandler(async (req, res, next) => {
     ) {
         await notifyLowStock(id);
     }
-
     return successResponse({
         res,
         statusCode: 200,
@@ -183,7 +191,7 @@ export const updateBook = asyncHandler(async (req, res, next) => {
 
 export const deleteBook = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
-    const deletedBook = await remove(Book, { _id: id });
+    const deletedBook = await remove({ model: Book, query: { _id: id } });
     if (!deletedBook) {
         const error = AppError("Book Not Found", 404);
         return next(error);
@@ -199,7 +207,7 @@ export const deleteBook = asyncHandler(async (req, res, next) => {
 export const downloadBook = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
 
-    const book = await Book.findById(id);
+    const book = await findById({ model: Book, id });
     if (!book || !book.pdf?.key) {
         const error = new AppError("Book or file not found", 404);
         return next(error);

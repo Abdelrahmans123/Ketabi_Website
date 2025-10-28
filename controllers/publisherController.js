@@ -7,17 +7,16 @@ import { roleEnum } from "../utils/roleEnum.js";
 import Book from "../models/Book.js";
 import { Order } from "../models/Order.js";
 import { sendEmail } from "../utils/sendEmail.js";
-
+import { findAll, findById } from "../models/services/db.js";
 
 export const createPublisher = asyncHandler(async (req, res, next) => {
-    // the id of the user document to give role publisher
     const { publisherId } = req.body;
 
-    const userDoc = await User.findById(publisherId);
+    const userDoc = await findById({ model: User, id: publisherId });
 
     if (!userDoc) return next(new AppError("Id not found", 400));
     userDoc.role = roleEnum.publisher;
-    await userDoc.save()
+    await userDoc.save();
     return successResponse({
         res,
         statusCode: 201,
@@ -29,11 +28,14 @@ export const createPublisher = asyncHandler(async (req, res, next) => {
 export const getPublishedBooks = asyncHandler(async (req, res, next) => {
     const { publisherId } = req.params;
 
-    const publisher = await User.findById(publisherId)
-        .populate({
+    const publisher = await findById({
+        model: User,
+        id: publisherId,
+        populate: {
             path: "booksPublished",
             model: "Book",
-        });
+        },
+    });
 
     if (!publisher) throw new AppError("Publisher not found", 404);
 
@@ -45,7 +47,6 @@ export const getPublishedBooks = asyncHandler(async (req, res, next) => {
     });
 });
 
-
 export const getPublisherOrders = asyncHandler(async (req, res, next) => {
     const { publisherId } = req.params;
     const user = req.user;
@@ -54,9 +55,13 @@ export const getPublisherOrders = asyncHandler(async (req, res, next) => {
         return next(new AppError("You can only view your own orders", 403));
     }
 
-    const publisherOrders = await PublisherOrder.find({ publisher: publisherId });
+    const publisherOrders = await findAll({
+        model: PublisherOrder,
+        query: { publisher: publisherId },
+    });
 
-    if (!publisherOrders.length) throw new AppError("No orders for this publisher", 404);
+    if (!publisherOrders.length)
+        throw new AppError("No orders for this publisher", 404);
 
     return successResponse({
         res,
@@ -70,19 +75,27 @@ export const updatePublisherOrder = asyncHandler(async (req, res, next) => {
     const { publisherOrderId } = req.params;
     const { deliveryStatus, paymentStatus, BookId } = req.body;
 
-    if (!deliveryStatus && !paymentStatus) throw new AppError("Nothing changed", 404);
+    if (!deliveryStatus && !paymentStatus)
+        throw new AppError("Nothing changed", 404);
 
     const book = await Book.findById(BookId);
     if (!book) throw new AppError("Book not found", 404);
 
-    // Find PublisherOrder
-    const publisherOrder = await PublisherOrder.findById(publisherOrderId);
+    const publisherOrder = await findById({
+        model: PublisherOrder,
+        id: publisherOrderId,
+    });
     const publisherId = publisherOrder.publisher;
     if (!publisherOrder) throw new AppError("Publisher order not found", 404);
 
     // logged-in publisher owns this order
-    if (publisherOrder.publisher.toString() !== publisherId && req.user.role !== roleEnum.admin) {
-        return next(new AppError("You are not authorized to update this order", 403));
+    if (
+        publisherOrder.publisher.toString() !== publisherId &&
+        req.user.role !== roleEnum.admin
+    ) {
+        return next(
+            new AppError("You are not authorized to update this order", 403)
+        );
     }
 
     // Update PublisherOrder fields
@@ -99,15 +112,21 @@ export const updatePublisherOrder = asyncHandler(async (req, res, next) => {
 
     await publisherOrder.save();
 
-    // Sync update to the main Order collection
-    const mainOrder = await Order.findById(publisherOrder.order);
+
+    const mainOrder = await findById({
+        model: Order,
+        id: publisherOrder.order,
+    });
     if (mainOrder) {
         mainOrder.items = mainOrder.items.map((item) => {
-            console.log("item.publisher.toString(): ",item.publisher.toString());
-            console.log("publisherId: ",publisherId);
-            console.log("item.book.toString(): ",item.book.toString());
-            console.log("BookId: ",BookId);
-            
+            console.log(
+                "item.publisher.toString(): ",
+                item.publisher.toString()
+            );
+            console.log("publisherId: ", publisherId);
+            console.log("item.book.toString(): ", item.book.toString());
+            console.log("BookId: ", BookId);
+
             if (
                 item.publisher.toString() === publisherId.toString() &&
                 item.book.toString() === BookId
@@ -137,7 +156,6 @@ export const updatePublisherOrder = asyncHandler(async (req, res, next) => {
     else if (paymentStatus)
         textUpdate = `Your book: ${book.name} from order ${mainOrder.orderNumber}: Payment Status as ${paymentStatus}.`;
 
-    //Send notification email
     await sendEmail({
         to: mainOrder.userEmail,
         subject: "Order Update",
@@ -153,4 +171,4 @@ export const updatePublisherOrder = asyncHandler(async (req, res, next) => {
             mainOrder,
         },
     });
-})
+});

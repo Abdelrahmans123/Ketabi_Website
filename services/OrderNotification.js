@@ -2,10 +2,7 @@ import { sendNotification } from "../utils/sendNotification.js";
 import { notificationType } from "../utils/notificationTypeEnum.js";
 import asyncHandler from "../utils/asyncHandler.js";
 
-/**
- * Send notification when order is confirmed (after creation)
- * @param {Object} order - The order object
- */
+
 export const notifyOrderConfirmed = asyncHandler(async (order) => {
     const itemCount = order.items.length;
     const bookNames = order.items
@@ -37,17 +34,14 @@ export const notifyOrderConfirmed = asyncHandler(async (order) => {
     );
 });
 
-/**
- * Send notification when payment is successful
- * @param {Object} order - The order object
- */
+
 export const notifyPaymentSuccess = asyncHandler(async (order) => {
     const itemCount = order.items.length;
 
     await sendNotification({
         userId: order.user,
         type: notificationType.PAYMENT_SUCCESS,
-        title: "✅ Payment Successful!",
+        title: "Payment Successful!",
         content: `Payment of ${order.finalPrice} EGP for order #${order.orderNumber} was successful. Your order is being processed.`,
         data: {
             orderId: order._id,
@@ -59,23 +53,18 @@ export const notifyPaymentSuccess = asyncHandler(async (order) => {
             paymentStatus: order.paymentStatus,
         },
     });
-
     console.log(
         `Payment success notification sent for order: ${order.orderNumber}`
     );
 });
 
-/**
- * Send notification when payment fails
- * @param {Object} order - The order object
- * @param {String} reason - Failure reason
- */
+
 export const notifyPaymentFailed = asyncHandler(
     async (order, reason = "Unknown") => {
         await sendNotification({
             userId: order.user,
             type: notificationType.PAYMENT_FAILED,
-            title: "❌ Payment Failed",
+            title: "Payment Failed",
             content: `Payment for order #${order.orderNumber} failed. Reason: ${reason}. Please try again.`,
             data: {
                 orderId: order._id,
@@ -86,22 +75,17 @@ export const notifyPaymentFailed = asyncHandler(
                 retryUrl: `/orders/${order._id}/retry`,
             },
         });
-
         console.log(
             `Payment failed notification sent for order: ${order.orderNumber}`
         );
     }
 );
 
-/**
- * Send notification when order is processing
- * @param {Object} order - The order object
- */
 export const notifyOrderProcessing = asyncHandler(async (order) => {
     await sendNotification({
         userId: order.user,
         type: notificationType.ORDER_PROCESSING,
-        title: "📦 Order Processing",
+        title: "Order Processing",
         content: `Your order #${order.orderNumber} is being prepared for shipment.`,
         data: {
             orderId: order._id,
@@ -116,21 +100,14 @@ export const notifyOrderProcessing = asyncHandler(async (order) => {
     );
 });
 
-/**
- * Send notification when order is shipped
- * @param {Object} order - The order object
- * @param {String} trackingNumber - Optional tracking number
- */
 export const notifyOrderShipped = asyncHandler(
     async (order, trackingNumber = null) => {
         const hasPhysicalItems = order.items.some(
             (item) => item.type === "physical"
         );
-
         if (!hasPhysicalItems) {
-            return; // Don't send shipping notification for ebook-only orders
+            return;
         }
-
         await sendNotification({
             userId: order.user,
             type: notificationType.ORDER_SHIPPED,
@@ -149,22 +126,18 @@ export const notifyOrderShipped = asyncHandler(
                 orderStatus: order.orderStatus,
             },
         });
-
         console.log(
             `Order shipped notification sent for order: ${order.orderNumber}`
         );
     }
 );
 
-/**
- * Send notification when order is delivered
- * @param {Object} order - The order object
- */
+
 export const notifyOrderDelivered = asyncHandler(async (order) => {
     await sendNotification({
         userId: order.user,
         type: notificationType.ORDER_DELIVERED,
-        title: "🎊 Order Delivered!",
+        title: "Order Delivered!",
         content: `Your order #${order.orderNumber} has been delivered successfully. Enjoy your books!`,
         data: {
             orderId: order._id,
@@ -180,17 +153,13 @@ export const notifyOrderDelivered = asyncHandler(async (order) => {
     );
 });
 
-/**
- * Send notification when order is cancelled
- * @param {Object} order - The order object
- * @param {String} reason - Cancellation reason
- */
+
 export const notifyOrderCancelled = asyncHandler(
     async (order, reason = "User request") => {
         await sendNotification({
             userId: order.user,
             type: notificationType.ORDER_CANCELLED,
-            title: "🚫 Order Cancelled",
+            title: "Order Cancelled",
             content: `Your order #${
                 order.orderNumber
             } has been cancelled. Reason: ${reason}${
@@ -216,15 +185,11 @@ export const notifyOrderCancelled = asyncHandler(
     }
 );
 
-/**
- * Send notification when refund is processed
- * @param {Object} order - The order object
- */
 export const notifyPaymentRefunded = asyncHandler(async (order) => {
     await sendNotification({
         userId: order.user,
         type: notificationType.PAYMENT_REFUNDED,
-        title: "💸 Refund Processed",
+        title: "Refund Processed",
         content: `Refund of ${order.finalPrice} EGP for order #${order.orderNumber} has been processed successfully.`,
         data: {
             orderId: order._id,
@@ -239,11 +204,7 @@ export const notifyPaymentRefunded = asyncHandler(async (order) => {
     console.log(`Refund notification sent for order: ${order.orderNumber}`);
 });
 
-/**
- * Send notification for gift recipient
- * @param {String} recipientUserId - Recipient's user ID
- * @param {Object} order - The order object
- */
+
 export const notifyGiftReceived = asyncHandler(
     async (recipientUserId, order) => {
         const itemCount = order.items.length;
@@ -255,7 +216,7 @@ export const notifyGiftReceived = asyncHandler(
         await sendNotification({
             userId: recipientUserId,
             type: notificationType.ORDER_DELIVERED,
-            title: "🎁 Gift Received!",
+            title: "Gift Received!",
             content: `You've received a gift with ${itemCount} book${
                 itemCount > 1 ? "s" : ""
             } from ${order.userName}! ${
@@ -281,12 +242,7 @@ export const notifyGiftReceived = asyncHandler(
     }
 );
 
-/**
- * Helper function to calculate estimated delivery date
- * @param {Number} minDays - Minimum days for delivery
- * @param {Number} maxDays - Maximum days for delivery
- * @returns {Object} - Estimated delivery range
- */
+
 function calculateEstimatedDelivery(minDays = 3, maxDays = 5) {
     const today = new Date();
     const minDate = new Date(today);
@@ -301,11 +257,6 @@ function calculateEstimatedDelivery(minDays = 3, maxDays = 5) {
     };
 }
 
-/**
- * Helper function to get refund credit days based on payment method
- * @param {String} paymentMethod - Payment method used
- * @returns {Number} - Days until refund appears
- */
 function getRefundCreditDays(paymentMethod) {
     const refundDays = {
         Stripe: 5,

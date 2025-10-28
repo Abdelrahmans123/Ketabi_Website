@@ -3,28 +3,23 @@ import Book from "../models/Book.js";
 import { sendNotification } from "../utils/sendNotification.js";
 import { notificationType } from "../utils/notificationTypeEnum.js";
 import asyncHandler from "../utils/asyncHandler.js";
+import { findAll, findById } from "../models/services/db.js";
 
-/**
- * Notify users when a book is back in stock
- * @param {String} bookId - The ID of the book that's back in stock
- */
 export const notifyBookBackInStock = asyncHandler(async (bookId) => {
-    const book = await Book.findById(bookId);
+    const book = await findById({ model: Book, id: bookId });
     if (!book || book.status !== "in stock") {
         return;
     }
-
-    // Find all users who have this book in their wishlist
-    const users = await User.find({
-        wishlist: bookId,
-    }).select("_id name");
+    const users = await findAll({
+        model: User,
+        query: { wishlist: bookId },
+        select: "_id name",
+    });
 
     if (!users || users.length === 0) {
         console.log(`No users have book ${book.name} in their wishlist`);
         return;
     }
-
-    // Send notification to each user
     const notificationPromises = users.map((user) =>
         sendNotification({
             userId: user._id,
@@ -50,36 +45,26 @@ export const notifyBookBackInStock = asyncHandler(async (bookId) => {
     );
 });
 
-/**
- * Notify users when a book price drops
- * @param {String} bookId - The ID of the book
- * @param {Number} oldPrice - The old price
- * @param {Number} newPrice - The new price
- */
 export const notifyPriceDrop = asyncHandler(
     async (bookId, oldPrice, newPrice) => {
-        const book = await Book.findById(bookId);
+        const book = await findById({ model: Book, id: bookId });
         if (!book) return;
-
-        // Calculate discount percentage
         const discountPercentage = Math.round(
             ((oldPrice - newPrice) / oldPrice) * 100
         );
-
-        // Find users who have this book in wishlist or cart
-        const users = await User.find({
-            wishlist: bookId,
-        }).select("_id name");
-
+        const users = await findAll({
+            model: User,
+            query: { wishlist: bookId },
+            select: "_id name",
+        });
         if (!users || users.length === 0) {
             return;
         }
-
         const notificationPromises = users.map((user) =>
             sendNotification({
                 userId: user._id,
                 type: notificationType.PRICE_DROP,
-                title: "💰 Price Drop Alert!",
+                title: "Price Drop Alert!",
                 content: `"${book.name}" price dropped by ${discountPercentage}%! Was ${oldPrice} EGP, now only ${newPrice} EGP.`,
                 data: {
                     bookId: book._id,
@@ -93,7 +78,6 @@ export const notifyPriceDrop = asyncHandler(
                 },
             })
         );
-
         await Promise.all(notificationPromises);
         console.log(
             `Sent price drop notifications to ${users.length} users for book: ${book.name}`
@@ -101,27 +85,16 @@ export const notifyPriceDrop = asyncHandler(
     }
 );
 
-/**
- * Notify users when a new edition of a book they own is available
- * @param {String} newBookId - The ID of the new edition
- * @param {String} oldBookName - Name to match with previous editions
- */
 export const notifyNewEdition = asyncHandler(async (newBookId, authorName) => {
-    const newBook = await Book.findById(newBookId);
+    const newBook = await findById({ model: Book, id: newBookId });
     if (!newBook) return;
-
-    // Find users who have purchased books by the same author
-    const users = await User.find({
-        purchasedBooks: { $exists: true, $ne: [] },
-    })
-        .populate({
-            path: "purchasedBooks",
-            match: { author: authorName },
-            select: "_id name author",
-        })
-        .select("_id name purchasedBooks");
-
-    // Filter users who actually have books by this author
+    const users = await findAll({
+        model: User,
+        query: {
+            purchasedBooks: { $exists: true, $ne: [] },
+        },
+        select: "_id name purchasedBooks",
+    });
     const interestedUsers = users.filter(
         (user) => user.purchasedBooks && user.purchasedBooks.length > 0
     );
@@ -134,7 +107,7 @@ export const notifyNewEdition = asyncHandler(async (newBookId, authorName) => {
         sendNotification({
             userId: user._id,
             type: notificationType.NEW_EDITION,
-            title: "📖 New Edition Available!",
+            title: "New Edition Available!",
             content: `A new edition of "${newBook.name}" by ${newBook.author} is now available. Check it out!`,
             data: {
                 bookId: newBook._id,
@@ -153,19 +126,17 @@ export const notifyNewEdition = asyncHandler(async (newBookId, authorName) => {
     );
 });
 
-/**
- * Check if user should be notified about low stock
- * @param {String} bookId - The ID of the book
- */
 export const notifyLowStock = asyncHandler(async (bookId) => {
-    const book = await Book.findById(bookId);
+    const book = await findById({ model: Book, id: bookId });
     if (!book || book.stock > 5) {
-        return; // Only notify if stock is 5 or less
+        return;
     }
 
-    const users = await User.find({
-        wishlist: bookId,
-    }).select("_id name");
+    const users = await findAll({
+        model: User,
+        query: { wishlist: bookId },
+        select: "_id name",
+    });
 
     if (!users || users.length === 0) {
         return;
@@ -175,7 +146,7 @@ export const notifyLowStock = asyncHandler(async (bookId) => {
         sendNotification({
             userId: user._id,
             type: notificationType.BOOK_BACK_IN_STOCK,
-            title: "⚠️ Low Stock Alert!",
+            title: "Low Stock Alert!",
             content: `Only ${book.stock} copies left of "${book.name}"! Order now before it's too late.`,
             data: {
                 bookId: book._id,

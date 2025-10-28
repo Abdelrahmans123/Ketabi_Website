@@ -3,7 +3,7 @@ import Cart from "../models/Cart.js";
 import { sendNotification } from "../utils/sendNotification.js";
 import { notificationType } from "../utils/notificationTypeEnum.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { findOne } from "../models/services/db.js";
+import { deleteMany, findAll, findOne } from "../models/services/db.js";
 import AppError from "../utils/AppError.js";
 
 // Configuration
@@ -15,11 +15,11 @@ const CART_REMINDER_INTERVALS = {
 
 export const checkAbandonedCarts = asyncHandler(async () => {
     const now = new Date();
-    const carts = await Cart.find({
-        "items.0": { $exists: true },
-    })
-        .populate("user", "email name")
-        .populate("items.book", "title price");
+    const carts = await findAll({
+        model: Cart,
+        query: { items: { $exists: true, $not: { $size: 0 } } },
+        populate: "user",
+    });
     for (const cart of carts) {
         if (!cart.user) continue;
         const timeSinceUpdate = now - cart.updatedAt;
@@ -116,11 +116,15 @@ const sendCartReminder = asyncHandler(async (cart, reminderType) => {
 const getLastCartReminder = async (userId, reminderType) => {
     const Notification = (await import("../models/Notification.js")).default;
 
-    return await findOne(Notification, {
-        userId,
-        type: notificationType.CART_REMINDER || "CART_REMINDER",
-        "data.reminderType": reminderType,
-    }).sort({ createdAt: -1 });
+    return await findOne({
+        model: Notification,
+        query: {
+            userId,
+            type: notificationType.CART_REMINDER || "CART_REMINDER",
+            "data.reminderType": reminderType,
+        },
+        sort: { createdAt: -1 },
+    });
 };
 
 export const initCartReminderScheduler = () => {
@@ -131,9 +135,6 @@ export const initCartReminderScheduler = () => {
     console.log("Cart reminder scheduler initialized");
 };
 
-/**
- * Manual trigger for cart reminders (useful for testing)
- */
 export const triggerCartReminder = async (userId) => {
     try {
         const cart = await Cart.findOne({ user: userId })
@@ -158,9 +159,12 @@ export const initCartReminderCleanup = () => {
             const thirtyDaysAgo = new Date(
                 Date.now() - 30 * 24 * 60 * 60 * 1000
             );
-            const result = await Notification.deleteMany({
-                type: notificationType.CART_REMINDER || "CART_REMINDER",
-                createdAt: { $lt: thirtyDaysAgo },
+            const result = await deleteMany({
+                model: Notification,
+                query: {
+                    type: notificationType.CART_REMINDER || "CART_REMINDER",
+                    createdAt: { $lt: thirtyDaysAgo },
+                },
             });
             console.log(
                 `Cleaned up ${result.deletedCount} old cart reminder notifications`
