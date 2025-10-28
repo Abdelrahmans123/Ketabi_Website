@@ -13,6 +13,7 @@ import { sendEmail } from "../utils/sendEmail.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import Book from "../models/Book.js";
 import {
+    findById,
     findByIdAndUpdate,
     findOne,
     findOneAndUpdate,
@@ -102,7 +103,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
     // Calculate total price & check if EBOOK is already in library
     for (const item of items) {
-        const book = await Book.findById(item.book);
+        const book = await findById({ model: Book, id: item.book });
 
         // book not found in DB
         if (!book) {
@@ -222,13 +223,11 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     // Send order confirmed notification
     await notifyOrderConfirmed(order);
 
-    // Clear user's cart immediately
-    await findOneAndUpdate(
-        Cart,
-        { user: userId },
-        { $set: { items: [] } },
-        { new: true }
-    );
+    await findOneAndUpdate({
+        model: Cart,
+        filter: { user: userId },
+        update: { $set: { items: [] } },
+    });
 
     // Return client secret to frontend
     res.status(201).json({
@@ -273,10 +272,13 @@ export const getOrdersAdmin = asyncHandler(async (req, res, next) => {
     // Sorting logic
     const sort = { [sortBy]: sortOrder === "asc" ? 1 : -1 };
 
-    const orders = await Order.find(filters)
-        .sort(sort)
-        .skip(skip)
-        .limit(parseInt(limit));
+    const orders = await findAll({
+        model: Order,
+        filter: filters,
+        sort,
+        skip,
+        limit: parseInt(limit),
+    });
     const total = await Order.countDocuments(filters);
 
     if (!orders || orders.length === 0) {
@@ -314,7 +316,12 @@ export const getOrderHistory = asyncHandler(async (req, res, next) => {
     // Pagination logic
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const orders = await Order.find({ user }).skip(skip).limit(parseInt(limit));
+    const orders = await findAll({
+        model: Order,
+        filter: { user },
+        skip,
+        limit: parseInt(limit),
+    });
     const total = await Order.countDocuments(user);
 
     if (!orders || orders.length === 0) {
@@ -341,21 +348,16 @@ export const getOrderHistory = asyncHandler(async (req, res, next) => {
     });
 });
 
-/**
- * Update order status (Admin/Publisher)
- * Triggers appropriate notifications based on status change
- */
 export const updateOrderStatus = asyncHandler(async (req, res, next) => {
     const { orderId } = req.params;
     const { status, trackingNumber } = req.body;
 
-    // Validate status
     const validStatuses = Object.values(orderStatus);
     if (!validStatuses.includes(status)) {
         return next(new AppError(`Invalid order status: ${status}`, 400));
     }
 
-    const order = await Order.findById(orderId);
+    const order = await findById({ model: Order, id: orderId });
     if (!order) {
         return next(new AppError("Order not found", 404));
     }
@@ -364,7 +366,6 @@ export const updateOrderStatus = asyncHandler(async (req, res, next) => {
     order.orderStatus = status;
     await order.save();
 
-    // Send appropriate notification based on status
     switch (status) {
         case orderStatus.PROCESSING:
             await notifyOrderProcessing(order);
@@ -390,26 +391,19 @@ export const updateOrderStatus = asyncHandler(async (req, res, next) => {
     });
 });
 
-/**
- * Cancel order (User/Admin)
- */
 export const cancelOrder = asyncHandler(async (req, res, next) => {
     const { orderId } = req.params;
     const { reason } = req.body;
 
-    const order = await Order.findById(orderId);
+    const order = await findById({ model: Order, id: orderId });
     if (!order) {
         return next(new AppError("Order not found", 404));
     }
-
-    // Check if user owns this order (unless admin)
     if (order.user.toString() !== req.user.id && req.user.role !== "admin") {
         return next(
             new AppError("You don't have permission to cancel this order", 403)
         );
     }
-
-    // Check if order can be cancelled
     if (
         order.orderStatus === orderStatus.DELIVERED ||
         order.orderStatus === orderStatus.CANCELLED
@@ -424,18 +418,12 @@ export const cancelOrder = asyncHandler(async (req, res, next) => {
 
     order.orderStatus = orderStatus.CANCELLED;
     await order.save();
-
-    // If payment was completed, initiate refund
     if (order.paymentStatus === paymentStatus.COMPLETED) {
-        // Here you would integrate with your payment provider to process refund
-        // For now, we'll just update the status
         order.paymentStatus = paymentStatus.REFUNDED;
         await order.save();
         await notifyPaymentRefunded(order);
     }
-
     await notifyOrderCancelled(order, reason || "Cancelled by user");
-
     return successResponse({
         res,
         statusCode: 200,
@@ -444,21 +432,14 @@ export const cancelOrder = asyncHandler(async (req, res, next) => {
     });
 });
 
-/**
- * Get single order details
- */
 export const getOrderById = asyncHandler(async (req, res, next) => {
     const { orderId } = req.params;
 
-    const order = await Order.findById(orderId)
-        .populate("items.book", "name author price coverImage")
-        .populate("user", "name email");
+    const order = await findById({ model: Order, id: orderId });
 
     if (!order) {
         return next(new AppError("Order not found", 404));
     }
-
-    // Check if user owns this order (unless admin)
     if (
         order.user._id.toString() !== req.user.id &&
         req.user.role !== "admin"

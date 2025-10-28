@@ -1,6 +1,12 @@
 import Notification from "../models/Notification.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import AppError from "../utils/AppError.js";
+import {
+    deleteMany,
+    findOne,
+    findOneAndDelete,
+    remove,
+} from "../models/services/db.js";
 
 export const getUserNotifications = asyncHandler(async (req, res) => {
     const userId = req.user._id;
@@ -34,9 +40,9 @@ export const markAsRead = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    const notification = await Notification.findOne({
-        _id: id,
-        userId,
+    const notification = await findOne({
+        model: Notification,
+        query: { _id: id, userId },
     });
 
     if (!notification) {
@@ -87,9 +93,9 @@ export const deleteNotification = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    const notification = await Notification.findOneAndDelete({
-        _id: id,
-        userId,
+    const notification = await remove({
+        model: Notification,
+        query: { _id: id, userId },
     });
 
     if (!notification) {
@@ -105,9 +111,9 @@ export const deleteNotification = asyncHandler(async (req, res) => {
 export const deleteAllRead = asyncHandler(async (req, res) => {
     const userId = req.user._id;
 
-    const result = await Notification.deleteMany({
-        userId,
-        isRead: true,
+    const result = await deleteMany({
+        model: Notification,
+        filter: { userId, isRead: true },
     });
 
     res.status(200).json({
@@ -121,9 +127,9 @@ export const getNotificationById = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.user._id;
 
-    const notification = await Notification.findOne({
-        _id: id,
-        userId,
+    const notification = await findOne({
+        model: Notification,
+        query: { _id: id, userId },
     });
 
     if (!notification) {

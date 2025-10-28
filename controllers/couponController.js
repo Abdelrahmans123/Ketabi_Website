@@ -1,13 +1,19 @@
 import User from "../models/User.js";
 import Coupon from "../models/Coupon.js";
-import { create, findAll, findById, findOne, findOneAndUpdate, remove } from "../models/services/db.js";
+import {
+    create,
+    findAll,
+    findById,
+    findOne,
+    findOneAndUpdate,
+    remove,
+} from "../models/services/db.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { roleEnum } from "../utils/roleEnum.js";
 import { successResponse } from "../utils/successResponse.js";
 
 export const getAllCoupons = asyncHandler(async (req, res, next) => {
-
     const {
         page = 1,
         limit = 10,
@@ -26,24 +32,20 @@ export const getAllCoupons = asyncHandler(async (req, res, next) => {
     // Handle activitation status
     if (isActive) filters.isActive = isActive;
 
-    // Handle expiration filters
     if (expired === "true") {
         filters.expiryDate = { $lt: new Date() };
     } else if (expired === "false") {
         filters.expiryDate = { $gte: new Date() };
     }
-
-    // Pagination logic
     const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    // Sorting logic
     const sort = { [sortBy]: sortOrder === "asc" ? 1 : -1 };
-
-    const coupons = await Coupon.find(filters)
-        .sort(sort)
-        .skip(skip)
-        .limit(parseInt(limit));
-
+    const coupons = await findAll({
+        model: Coupon,
+        filter: filters,
+        sort,
+        skip,
+        limit: parseInt(limit),
+    });
     const total = await Coupon.countDocuments(filters);
 
     if (!coupons || coupons.length === 0) {
@@ -68,10 +70,18 @@ export const getAllCoupons = asyncHandler(async (req, res, next) => {
             },
         },
     });
-})
+});
 
 export const addCoupon = asyncHandler(async (req, res, next) => {
-    const { code, description, discountPercentage, minOrderValue, expiryDate, usageLimit, isActive } = req.body;
+    const {
+        code,
+        description,
+        discountPercentage,
+        minOrderValue,
+        expiryDate,
+        usageLimit,
+        isActive,
+    } = req.body;
     const CouponData = {
         code,
         description,
@@ -79,43 +89,52 @@ export const addCoupon = asyncHandler(async (req, res, next) => {
         minOrderValue,
         expiryDate,
         usageLimit,
-        isActive
-    }
-    const coupon = await create(Coupon, CouponData);
+        isActive,
+    };
+    const coupon = await create({ model: Coupon, data: CouponData });
     return successResponse({
         res,
         statusCode: 201,
         message: "Coupon Added Successfully",
         data: coupon,
     });
-})
+});
 
 export const editCoupon = asyncHandler(async (req, res, next) => {
-    const  id  = req.params.CouponId;
+    const id = req.params.CouponId;
 
-    const coupon = await findById(Coupon, id);
-    
-    if (!coupon){
+    const coupon = await findById({ model: Coupon, id });
+
+    if (!coupon) {
         const error = new AppError("Coupon not found", 404);
         return next(error);
     }
 
-    const { 
-        code = coupon.code, 
-        description = coupon.description, 
-        discountPercentage = coupon.discountPercentage, 
-        minOrderValue = coupon.minOrderValue, 
-        expiryDate = coupon.expiryDate, 
-        usageLimit = coupon.usageLimit, 
-        isActive = coupon.isActive
+    const {
+        code = coupon.code,
+        description = coupon.description,
+        discountPercentage = coupon.discountPercentage,
+        minOrderValue = coupon.minOrderValue,
+        expiryDate = coupon.expiryDate,
+        usageLimit = coupon.usageLimit,
+        isActive = coupon.isActive,
     } = req.body;
-    
-    
+
     const CouponData = {
-        code, description, discountPercentage, minOrderValue, expiryDate, usageLimit, isActive
+        code,
+        description,
+        discountPercentage,
+        minOrderValue,
+        expiryDate,
+        usageLimit,
+        isActive,
     };
 
-    const updatedCoupon = await findOneAndUpdate(Coupon, { _id: id }, CouponData);
+    const updatedCoupon = await findOneAndUpdate({
+        model: Coupon,
+        query: { _id: id },
+        data: CouponData,
+    });
 
     if (!updatedCoupon) {
         return next(new AppError("Coupon not found", 404));
@@ -127,23 +146,23 @@ export const editCoupon = asyncHandler(async (req, res, next) => {
         message: "Coupon updated successfully",
         data: updatedCoupon,
     });
-})
+});
 
 export const deleteCoupon = asyncHandler(async (req, res, next) => {
-    const  id  = req.params.CouponId;
+    const id = req.params.CouponId;
 
-    const coupon = await findById(Coupon, id);
-    
-    if (!coupon){
+    const coupon = await findById({ model: Coupon, id });
+
+    if (!coupon) {
         const error = new AppError("Coupon not found", 404);
         return next(error);
     }
 
-    await remove(Coupon, {_id: id});
+    await remove({ model: Coupon, query: { _id: id } });
 
     return successResponse({
         res,
         statusCode: 200,
-        message: "Coupon deleted successfully"
+        message: "Coupon deleted successfully",
     });
-})
+});

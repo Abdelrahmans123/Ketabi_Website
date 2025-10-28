@@ -1,17 +1,26 @@
-import { updateOne, findById } from "../models/services/db.js";
+import {
+    updateOne,
+    findById,
+    findByIdAndUpdate,
+} from "../models/services/db.js";
 import User from "../models/User.js";
 import Book from "../models/Book.js";
 import AppError from "../utils/AppError.js";
-import { encrypt } from "../utils/security.js";
+import { decrypt, encrypt } from "../utils/security.js";
 import { successResponse } from "../utils/successResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { sendNotification } from "../utils/sendNotification.js";
 import { notificationType } from "../utils/notificationTypeEnum.js";
 
 export const getProfile = asyncHandler(async (req, res, next) => {
-    const user = await findById(User, req.user._id);
+    const user = await findById({ model: User, id: req.user._id });
     if (!user) return next(AppError("User not found", 404));
-
+    const decryptedPhone = user.phone
+        ? decrypt({
+              cipherText: user.phone,
+              secretKey: process.env.ENCRYPTION_KEY,
+          })
+        : null;
     return successResponse({
         res,
         statusCode: 200,
@@ -19,7 +28,7 @@ export const getProfile = asyncHandler(async (req, res, next) => {
         data: {
             name: user.name,
             email: user.email,
-            phone: "Encrypted",
+            phone: decryptedPhone,
             address: user.address,
             gender: user.gender,
             avatar: user.avatar,
@@ -46,7 +55,11 @@ export const updateProfile = asyncHandler(async (req, res, next) => {
     if (updates.address && !Array.isArray(updates.address)) {
         updates.address = [updates.address];
     }
-    const updatedUser = await updateOne(User, { _id: req.user._id }, updates);
+    const updatedUser = await updateOne({
+        model: User,
+        query: { _id: req.user._id },
+        data: updates,
+    });
     await sendNotification({
         userId: req.user._id,
         type: notificationType.PROFILE_UPDATE,
@@ -75,13 +88,16 @@ export const updateProfile = asyncHandler(async (req, res, next) => {
 export const getLibrary = asyncHandler(async (req, res, next) => {
     const userId = req.user.id;
     // Get user and populate their library books
-    const user = await User.findById(userId)
-        .populate({
+    const user = await findById({
+        model: User,
+        id: userId,
+        populate: {
             path: "library",
             model: "Book",
             select: "name author categoryName price type avgRating coverImage", // optional fields
-        })
-        .select("library");
+        },
+        select: "library",
+    });
 
     if (!user) {
         throw new AppError("User not found", 404);
@@ -95,25 +111,22 @@ export const getLibrary = asyncHandler(async (req, res, next) => {
     });
 });
 
-// Wishlist Management
 export const addToWishlist = asyncHandler(async (req, res, next) => {
     const { bookId } = req.body;
     const userId = req.user._id;
 
-    // Check if book exists
-    const book = await Book.findById(bookId);
+    const book = await findById({ model: Book, id: bookId });
     if (!book) {
         throw new AppError("Book not found", 404);
     }
-
-    // Add to wishlist
-    const user = await User.findByIdAndUpdate(
-        userId,
-        { $addToSet: { wishlist: bookId } },
-        { new: true }
-    ).populate({
-        path: "wishlist",
-        select: "name author price image status",
+    const user = await findByIdAndUpdate({
+        model: User,
+        id: userId,
+        data: { $addToSet: { wishlist: bookId } },
+        populate: {
+            path: "wishlist",
+            select: "name author price image status",
+        },
     });
 
     return successResponse({
@@ -128,13 +141,14 @@ export const removeFromWishlist = asyncHandler(async (req, res, next) => {
     const { bookId } = req.params;
     const userId = req.user._id;
 
-    const user = await User.findByIdAndUpdate(
-        userId,
-        { $pull: { wishlist: bookId } },
-        { new: true }
-    ).populate({
-        path: "wishlist",
-        select: "name author price image status",
+    const user = await findByIdAndUpdate({
+        model: User,
+        id: userId,
+        data: { $pull: { wishlist: bookId } },
+        populate: {
+            path: "wishlist",
+            select: "name author price image status",
+        },
     });
 
     if (!user) {
@@ -152,9 +166,13 @@ export const removeFromWishlist = asyncHandler(async (req, res, next) => {
 export const getWishlist = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
 
-    const user = await User.findById(userId).populate({
-        path: "wishlist",
-        select: "name author categoryName price discount image status stock avgRating",
+    const user = await findById({
+        model: User,
+        id: userId,
+        populate: {
+            path: "wishlist",
+            select: "name author categoryName price discount image status stock avgRating",
+        },
     });
 
     if (!user) {

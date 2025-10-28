@@ -4,7 +4,7 @@ import Ticket from "../models/Ticket.js";
 import AppError from "../utils/AppError.js";
 import { successResponse } from "../utils/successResponse.js";
 export const getAllTickets = asyncHandler(async (req, res, next) => {
-    const tickets = await findAll(Ticket);
+    const tickets = await findAll({model: Ticket});
     if (!tickets) {
         const error = new AppError("No tickets found", 404);
         return next(error);
