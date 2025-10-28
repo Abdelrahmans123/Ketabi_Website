@@ -52,6 +52,7 @@ export const findById = async ({
     id,
     select = null,
     populate = null,
+    sort = null
 }) => {
     let queryBuilder = model.findById(id);
 

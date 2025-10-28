@@ -391,7 +391,7 @@ export const login = asyncHandler(async (req, res, next) => {
     const otpExpiry = Date.now() + 10 * 60 * 1000;
     await updateOne({
         model: User,
-        filter: { _id: user._id },
+        query: { _id: user._id },
         data: {
             twoFactorOtp: otpHash,
             twoFactorOtpExpires: otpExpiry,
