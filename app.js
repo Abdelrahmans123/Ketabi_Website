@@ -19,6 +19,7 @@ import reviewRoutes from "./routes/review.js";
 import stripeRouter from './controllers/webhookController.js';
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
+import { swaggerDocs } from "./config/swagger.js";
 import {
     cleanupOldCartsJob,
     couponExpirationJob,
@@ -66,6 +67,7 @@ const bootstrap = async () => {
     app.use("/api/tickets", ticketRoutes);
     app.use("/api/users", profileRouter);
     app.use("/api/reviews", reviewRoutes);
+    swaggerDocs(app);
     app.all("/{*dummy}", (req, res, next) => {
         res.status(404).json({
             message: "Route Not Found",
