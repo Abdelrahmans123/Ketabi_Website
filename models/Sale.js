@@ -13,7 +13,7 @@ const saleSchema = new mongoose.Schema(
   {
     publisher: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Publisher",
+      ref: "User",
       required: true,
     },
     order: {
