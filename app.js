@@ -5,7 +5,7 @@ import genreRoutes from "./routes/genre.js";
 import bookRouter from "./routes/book.js";
 import ticketRoutes from "./routes/ticket.js";
 import { connectMongoDB, connectRedisDB } from "./config/db.js";
-
+import { swaggerDocs } from "./config/swagger.js";
 import errorHandler from "./middlewares/errorHandler.js";
 import cartRouter from "./routes/cart.js";
 import orderRouter from "./routes/order.js";
@@ -58,6 +58,7 @@ const bootstrap = async () => {
     app.use("/api/reviews", reviewRoutes);
     app.use("/api/admin/refunds", adminRefundRoutes);
     app.use("/api/admin/sales", salesRouter);
+    swaggerDocs(app);
     app.post('/api/chat', async (req, res) => {
         const { message } = req.body;
 
