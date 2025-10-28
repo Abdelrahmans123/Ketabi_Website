@@ -83,3 +83,38 @@ export const cleanupOldCartsJob = () => {
     })
   );
 };
+
+export const orderCleanupJob = () => {
+  cron.schedule(
+    "*/5 * * * *",
+    asyncHandler(async () => {
+      const now = new Date();
+      const expiredOrders = await Order.find({
+        paymentStatus: paymentStatus.PENDING,
+        expiresAt: { $lt: now },
+      });
+
+      if (expiredOrders.length === 0) {
+        console.log("🕒 No expired orders found at this time.");
+        return;
+      }
+
+      console.log(`⚠️ Found ${expiredOrders.length} expired orders — restoring stock...`);
+
+      for (const order of expiredOrders) {
+        for (const item of order.items) {
+          if (item.type === itemType.PHYSICAL) {
+            await Book.updateOne(
+              { _id: item.book },
+              { $inc: { stock: item.quantity } }
+            );
+          }
+        }
+
+        order.paymentStatus = paymentStatus.EXPIRED;
+        await order.save();
+        console.log(`✅ Order ${order.orderNumber} marked as expired & stock restored.`);
+      }
+    })
+  );
+};
