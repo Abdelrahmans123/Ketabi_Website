@@ -5,14 +5,19 @@ import asyncHandler from "../utils/asyncHandler.js";
 import { successResponse } from "../utils/successResponse.js";
 import User from "../models/User.js";
 //import { uploadBufferToS3 } from "../config/s3.js";
-import { uploadBufferToS3 ,generateSignedDownloadUrl} from "../config/s3.js";
-
+import { uploadBufferToS3, generateSignedDownloadUrl } from "../config/s3.js";
+import {
+    notifyBookBackInStock,
+    notifyPriceDrop,
+    notifyNewEdition,
+    notifyLowStock,
+} from "../services/BookAvailabilityNotification.js";
 
 export const AddBook = asyncHandler(async (req, res, next) => {
     const publisherId = req.user.id;
     if (!req.file) {
         const book = await create(Book, req.body);
-        
+
         await User.findByIdAndUpdate(
             publisherId,
             { $addToSet: { booksPublished: book._id } },
@@ -50,10 +55,14 @@ export const AddBook = asyncHandler(async (req, res, next) => {
     const book = await create(Book, bookData);
 
     if (book.publisher) {
-        await User.findByIdAndUpdate(
-            book.publisher,
-            { $push: { booksPublished: book._id } }
-        );
+        await User.findByIdAndUpdate(book.publisher, {
+            $push: { booksPublished: book._id },
+        });
+    }
+
+    // Notify users about new edition from this author
+    if (book.author) {
+        await notifyNewEdition(book._id, book.author);
     }
 
     return successResponse({
@@ -107,12 +116,6 @@ export const getBooks = asyncHandler(async (req, res, next) => {
     });
 });
 
-
-
-
-
-
-
 export const getBookByID = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
     const book = await findById(Book, id);
@@ -129,13 +132,47 @@ export const getBookByID = asyncHandler(async (req, res, next) => {
 });
 export const updateBook = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
-    const updatedBook = await findByIdAndUpdate(Book, id, req.body, {
-        new: true,
-    });
-    if (!updatedBook) {
+
+    // Get the old book data before update
+    const oldBook = await Book.findById(id);
+    if (!oldBook) {
         const error = AppError("Book Not Found", 404);
         return next(error);
     }
+
+    // Update the book
+    const updatedBook = await Book.findByIdAndUpdate(id, req.body, {
+        new: true,
+    });
+
+    // Check for status change to "in stock" and notify users
+    if (
+        oldBook.status === "out of stock" &&
+        updatedBook.status === "in stock"
+    ) {
+        // Notify users who have this book in their wishlist
+        await notifyBookBackInStock(id);
+    }
+
+    // Check for price drop and notify users
+    if (
+        req.body.price !== undefined &&
+        updatedBook.price < oldBook.price &&
+        updatedBook.status === "in stock"
+    ) {
+        await notifyPriceDrop(id, oldBook.price, updatedBook.price);
+    }
+
+    // Check for low stock and notify users
+    if (
+        req.body.stock !== undefined &&
+        updatedBook.stock <= 5 &&
+        updatedBook.stock > 0 &&
+        updatedBook.status === "in stock"
+    ) {
+        await notifyLowStock(id);
+    }
+
     return successResponse({
         res,
         statusCode: 200,
