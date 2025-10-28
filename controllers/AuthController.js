@@ -394,19 +394,6 @@ export const login = asyncHandler(async (req, res, next) => {
     req.session.isAuthenticated = false;
     req.session.otpPurpose = "login";
     req.session.otpIssuedAt = Date.now();
-    console.log(req.session);
-    await new Promise((resolve, reject) => {
-        req.session.save((err) => {
-            if (err) {
-                console.error("❌ Session save error:", err);
-                reject(err);
-            } else {
-                console.log("✅ Session saved:", req.session);
-                resolve();
-            }
-        });
-    });
-
     await sendEmail({
         to: email,
         subject: "Your Login OTP",

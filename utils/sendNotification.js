@@ -17,7 +17,8 @@ export const sendNotification = async ({
     });
 
     const io = getIO();
-    const sockets = connectedSockets.get(userId);
+    const user = userId.toString();
+    const sockets = connectedSockets.get(user);
     if (sockets) {
         io.to(sockets).emit("notification", notification);
     }

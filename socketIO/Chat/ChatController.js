@@ -1,15 +1,18 @@
 import { findOne } from "../../models/services/db.js";
 import Ticket from "../../models/Ticket.js";
+import {
+    initCartReminderCleanup,
+    initCartReminderScheduler,
+} from "../../services/CartReminder.js";
 import AppError from "../../utils/AppError.js";
 import asyncHandler from "../../utils/asyncHandler.js";
-import {
-    sendMessage,
-    registerEvents,
-} from "./events.js";
+import { sendMessage, registerEvents } from "./events.js";
 
 export const registerSocket = (socket, io) => {
     registerEvents(socket);
     sendMessage(socket, io);
+    initCartReminderScheduler();
+    initCartReminderCleanup();
 };
 export const getChat = asyncHandler(async (req, res, next) => {
     const userId = req.params.id;
