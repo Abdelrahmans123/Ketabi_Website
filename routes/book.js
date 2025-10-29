@@ -139,19 +139,21 @@ router.post(
     upload.single("pdf"),
     AddBook
 );
+//router.get("/List-Books", cacheMiddleware("List-Books"), getBooks);
 router.get("/List-Books", cacheMiddleware("List-Books"), getBooks);
+
 router.get("/Get-Book/:id", cacheMiddleware("Get-Book"), getBookByID);
 router.put(
     "/Update-Book/:id",
     authenticate,
-    authorize("admin", "author"),
+    authorize(roleEnum.admin, roleEnum.publisher),
     validate(updateSchema),
     updateBook
 );
 router.delete(
     "/Delete/:id",
     authenticate,
-    authorize("admin", "author"),
+    authorize(roleEnum.admin, roleEnum.publisher),
     deleteBook
 );
 router.get("/Download-Book/:id", authenticate, downloadBook);

@@ -171,7 +171,7 @@ export const getWishlist = asyncHandler(async (req, res, next) => {
         id: userId,
         populate: {
             path: "wishlist",
-            select: "name author categoryName price discount image status stock avgRating",
+            select: "name author price image status",
         },
     });
 

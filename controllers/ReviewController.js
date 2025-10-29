@@ -150,12 +150,10 @@ export const deleteReview = asyncHandler(async (req, res) => {
 export const listMine = asyncHandler(async (req, res) => {
     const items = await findAll({
         model: Review,
-        query: {
+        filter: {
             user: req.user._id,
         },
         sort: { createdAt: -1 },
-    }).sort({
-        createdAt: -1,
     });
     return successResponse({ res, data: { items } });
 });

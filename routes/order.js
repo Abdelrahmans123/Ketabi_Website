@@ -135,7 +135,7 @@ router.post('/', authenticate, validate(createOrderSchema), createOrder);
 // get orders for admins
 router.get('/', authenticate, authorize(roleEnum.admin), queryValidate(getAllOrdersSchema), getOrdersAdmin);
 
-// get user own orders
+// get user own orders  
 router.get('/order-history', authenticate, queryValidate(getUserOrderSchema), getOrderHistory)
 
 export default router;

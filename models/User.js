@@ -78,7 +78,7 @@ const userSchema = new mongoose.Schema(
         twoFactorOtpExpires: Date,
         lastLoginAt: { type: Date, default: null },
         library: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],
-        purchasedBooks: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book"}],
+        purchasedBooks: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],
         booksPublished: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],
         twoFactorOtpAttempts: { type: Number, default: 0 },
         provider: {
@@ -90,6 +90,7 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],
     },
 
     { timestamps: true }

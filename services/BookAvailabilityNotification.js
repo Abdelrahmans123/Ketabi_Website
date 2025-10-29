@@ -54,7 +54,7 @@ export const notifyPriceDrop = asyncHandler(
         );
         const users = await findAll({
             model: User,
-            query: { wishlist: bookId },
+            filter: { wishlist: bookId },
             select: "_id name",
         });
         if (!users || users.length === 0) {
