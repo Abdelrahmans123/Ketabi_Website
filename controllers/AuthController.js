@@ -52,15 +52,12 @@ export const register = asyncHandler(async (req, res, next) => {
         subject: "Welcome to Our App - Confirm Your Email",
         text: `Your OTP is ${otp}. Please use it to confirm your email.`,
     });
+
     req.session.userId = newUser._id;
     return successResponse({
         res,
         statusCode: 201,
         message: "User registered successfully. Check your email for OTP.",
-        data: {
-            name: newUser.name,
-            email: newUser.email,
-        },
     });
 });
 export const registerWithGoogle = asyncHandler(async (req, res, next) => {
@@ -377,12 +374,6 @@ export const login = asyncHandler(async (req, res, next) => {
             message: "Login successful",
             data: {
                 accessToken,
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    email: user.email,
-                    role: user.role,
-                },
             },
         });
     }
@@ -502,6 +493,8 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
         subject: "Reset Your Password",
         text: `Your OTP is ${otp}. Please use it to reset your password.`,
     });
+    console.log("OTP", otp);
+
     return successResponse({
         res,
         statusCode: 200,

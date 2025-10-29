@@ -17,7 +17,7 @@ export const getCart = asyncHandler(async (req, res, next) => {
     });
     if (!cart) {
         const cart = new Cart({ user: req.user._id, items: [] });
-        await create(Cart, cart);
+        await create({ model: Cart, data: cart });
         return successResponse({
             res,
             statusCode: 200,

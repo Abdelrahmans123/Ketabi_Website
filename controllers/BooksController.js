@@ -78,12 +78,14 @@ export const AddBook = asyncHandler(async (req, res, next) => {
 });
 export const getBooks = asyncHandler(async (req, res, next) => {
     const query = req.query;
+    console.log("🚀 ~ query:", query.title);
+
     const limit = parseInt(query.limit) || 10;
     const page = parseInt(query.page) || 1;
     const skip = (page - 1) * limit;
 
     const filter = {};
-    if (query.title) filter.title = { $regex: query.title, $options: "i" };
+    if (query.title) filter.name = { $regex: query.title, $options: "i" };
     if (query.author) filter.author = { $regex: query.author, $options: "i" };
     if (query.genre) filter.genre = query.genre;
 
@@ -97,7 +99,7 @@ export const getBooks = asyncHandler(async (req, res, next) => {
     // const books = await Book.find(filter).skip(skip).limit(limit).sort(sort);
     const books = await findAll({
         model: Book,
-        filter,
+        filter: filter,
         skip,
         limit,
         sort,

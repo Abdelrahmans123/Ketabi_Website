@@ -42,11 +42,6 @@ router.post(
         (async () => {
             try {
                 const order = await Order.findOne({ orderNumber });
-                if (!order) {
-                    console.warn(`No order found for ${orderNumber}`);
-                    return;
-                }
-
                 switch (event.type) {
                     case "payment_intent.succeeded":
                         await handleSuccessfulPayment(order, paymentIntent);

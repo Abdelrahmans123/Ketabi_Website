@@ -95,7 +95,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
         // book not found in DB
         if (!book) {
-            return next(new AppError(`Book with ID ${item.book}/ title: ${item.name} not found`, 404));
+            return next(new AppError(`Book with ID ${item.book}`, 404));
         }
 
         // Ebook found in library
