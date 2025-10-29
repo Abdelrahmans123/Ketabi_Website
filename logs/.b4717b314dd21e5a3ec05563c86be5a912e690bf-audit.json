@@ -19,6 +19,11 @@
             "date": 1761686459043,
             "name": "/home/abdelghafaar/ITI/Projects/Ketabi_Website/logs/error-2025-10-29.log",
             "hash": "99576f85311f1633ae9ccb361bb359630c406fa22c75f56a920c1e22638f5991"
+        },
+        {
+            "date": 1761771606032,
+            "name": "/home/abdelghafaar/ITI/Projects/Ketabi_Website/logs/error-2025-10-30.log",
+            "hash": "40d4bafb27b7f2d3a443491188e9df4007a7faeeb70f00df1b3acd7885e932cd"
         }
     ],
     "hashType": "sha256"

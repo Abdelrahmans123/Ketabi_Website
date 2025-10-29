@@ -45,7 +45,6 @@ const bootstrap = async () => {
     app.use(helmet());
     app.use(apiLimiter);
     // *---Routes---*
-    app.use("/webhook/stripe", stripeRouter);
     app.use("/api/auth", authRoutes);
     app.use("/api/genres", genreRoutes);
     app.use("/api/books", bookRouter);
