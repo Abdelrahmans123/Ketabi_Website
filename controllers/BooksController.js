@@ -36,6 +36,17 @@ export const AddBook = asyncHandler(async (req, res, next) => {
         return next(error);
     }
 
+    // check if publisher has a published book with the same name
+    const publishedBooksIds = req.user.booksPublished;
+
+    for (const bookId of publishedBooksIds) {
+        const book = await findById({ model: Book, id: bookId });
+        if (book.name === req.body.name) {
+            const error = new AppError("Can't post the same book twice!", 404);
+            return next(error);
+        }
+    }
+
     if (!req.file) {
         const book = await create({ model: Book, data: req.body });
         await findByIdAndUpdate({
@@ -183,7 +194,7 @@ export const updateBook = asyncHandler(async (req, res, next) => {
         return successResponse({
             res,
             statusCode: 200,
-            message: "Nothing changed!",
+            message: "Nothing changed! The book is the same",
             data: oldBook,
         });
     }
@@ -238,6 +249,15 @@ export const deleteBook = asyncHandler(async (req, res, next) => {
         const error = new AppError("Book Not Found", 404);
         return next(error);
     }
+
+    // update published books array in the publisher document
+    if (req.user.role === roleEnum.publisher) {
+        await findByIdAndUpdate({
+            model: User, id: req.user.id,
+            data: { $pull: { booksPublished: id } }
+        });
+    }
+
     return successResponse({
         res,
         statusCode: 200,
