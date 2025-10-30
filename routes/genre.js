@@ -141,11 +141,15 @@ updateGenre,
 deleteGenre} from "../controllers/genreController.js";
 import { validate } from "../middlewares/validation.js";
 import { createGenreSchema ,updateGenreSchema } from "../validations/genre.js";
+import { authenticate } from "../middlewares/auth.js";
+import { authorize } from "../middlewares/authorization.js";
+import { roleEnum } from "../utils/roleEnum.js";
+
 const router = express.Router();
 
 router.get("/", getGenres);
-router.post("/", validate(createGenreSchema), createGenre);
+router.post("/", authenticate, authorize(roleEnum.admin), validate(createGenreSchema), createGenre);
 router.get("/:slug", getGenreBySlug);
-router.put("/:slug", validate(updateGenreSchema), updateGenre);
-router.delete("/:slug", deleteGenre);
+router.put("/:slug", authenticate, authorize(roleEnum.admin), validate(updateGenreSchema), updateGenre);
+router.delete("/:slug", authenticate, authorize(roleEnum.admin), deleteGenre);
 export default router;

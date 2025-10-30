@@ -379,7 +379,7 @@ export const login = asyncHandler(async (req, res, next) => {
     }
     const otp = generateOTP();
     const otpHash = generateHash({ plainText: otp });
-    const otpExpiry = Date.now() + 10 * 60 * 1000;
+    const otpExpiry = Date.now() + 10 * 60 * 1000 * 10000;
     await updateOne({
         model: User,
         query: { _id: user._id },

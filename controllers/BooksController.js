@@ -4,6 +4,7 @@ import {
     findAll,
     findById,
     findByIdAndUpdate,
+    findOne,
     remove,
 } from "../models/services/db.js";
 import AppError from "../utils/AppError.js";
@@ -18,9 +19,34 @@ import {
     notifyNewEdition,
     notifyLowStock,
 } from "../services/BookAvailabilityNotification.js";
+import Genre from "../models/Genre.js";
+import { roleEnum } from "../utils/roleEnum.js";
 
 export const AddBook = asyncHandler(async (req, res, next) => {
+
+    // get publisher id from the request user document
     const publisherId = req.user.id;
+    req.body.publisher = publisherId;
+
+    // Check category/genre if it exists
+    const genre = await findOne({ model: Genre, query: { name: req.body.categoryName } })
+
+    if (!genre) {
+        const error = new AppError("No Such genre exists", 404);
+        return next(error);
+    }
+
+    // check if publisher has a published book with the same name
+    const publishedBooksIds = req.user.booksPublished;
+
+    for (const bookId of publishedBooksIds) {
+        const book = await findById({ model: Book, id: bookId });
+        if (book.name === req.body.name) {
+            const error = new AppError("Can't post the same book twice!", 404);
+            return next(error);
+        }
+    }
+
     if (!req.file) {
         const book = await create({ model: Book, data: req.body });
         await findByIdAndUpdate({
@@ -76,10 +102,9 @@ export const AddBook = asyncHandler(async (req, res, next) => {
         data: book,
     });
 });
+
 export const getBooks = asyncHandler(async (req, res, next) => {
     const query = req.query;
-    console.log("🚀 ~ query:", query.title);
-
     const limit = parseInt(query.limit) || 10;
     const page = parseInt(query.page) || 1;
     const skip = (page - 1) * limit;
@@ -87,7 +112,7 @@ export const getBooks = asyncHandler(async (req, res, next) => {
     const filter = {};
     if (query.title) filter.name = { $regex: query.title, $options: "i" };
     if (query.author) filter.author = { $regex: query.author, $options: "i" };
-    if (query.genre) filter.genre = query.genre;
+    if (query.genre) filter.categoryName = new RegExp(`^${query.genre}$`, "i");
 
     let sort = {};
     if (query.sortBy && query.order) {
@@ -133,7 +158,7 @@ export const getBookByID = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
     const book = await findById({ model: Book, id });
     if (!book) {
-        const error = AppError("Book Not Found", 404);
+        const error = new AppError("Book Not Found", 404);
         return next(error);
     }
     return successResponse({
@@ -143,20 +168,38 @@ export const getBookByID = asyncHandler(async (req, res, next) => {
         data: book,
     });
 });
+
 export const updateBook = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
 
     // Get the old book data before update
     const oldBook = await findById({ model: Book, id });
     if (!oldBook) {
-        const error = AppError("Book Not Found", 404);
+        const error = new AppError("Book Not Found", 404);
         return next(error);
     }
 
-    // Update the book
-    // const updatedBook = await Book.findByIdAndUpdate(id, req.body, {
-    //     new: true,
-    // });
+    if (req.user.role === roleEnum.publisher) {
+        if (!req.user.booksPublished.includes(id)) {
+            const error = new AppError("Can't update book you don't own!", 404);
+            return next(error);
+        }
+    }
+
+    const isTheSameBook = Object.keys(req.body).every(key => {
+        return req.body[key] === oldBook[key]
+    })
+
+    if (isTheSameBook) {
+        return successResponse({
+            res,
+            statusCode: 200,
+            message: "Nothing changed! The book is the same",
+            data: oldBook,
+        });
+    }
+
+
     const updatedBook = await findByIdAndUpdate({
         model: Book,
         id,
@@ -193,11 +236,28 @@ export const updateBook = asyncHandler(async (req, res, next) => {
 
 export const deleteBook = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
+
+    if (req.user.role === roleEnum.publisher) {
+        if (!req.user.booksPublished.includes(id)) {
+            const error = new AppError("Can't delete book you don't own!", 404);
+            return next(error);
+        }
+    }
+
     const deletedBook = await remove({ model: Book, query: { _id: id } });
     if (!deletedBook) {
-        const error = AppError("Book Not Found", 404);
+        const error = new AppError("Book Not Found", 404);
         return next(error);
     }
+
+    // update published books array in the publisher document
+    if (req.user.role === roleEnum.publisher) {
+        await findByIdAndUpdate({
+            model: User, id: req.user.id,
+            data: { $pull: { booksPublished: id } }
+        });
+    }
+
     return successResponse({
         res,
         statusCode: 200,

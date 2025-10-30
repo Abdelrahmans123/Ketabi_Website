@@ -53,10 +53,24 @@ export const createSchema = Joi.object({
     .messages({
       "any.only": "Status must be either 'in stock' or 'out of stock'",
     }),
-  publisher: Joi.string().required().messages({
+  /* publisher: Joi.string().required().messages({
     "string.empty": "Publisher ID is required",
     "any.required": "Publisher ID is required"
-  }),
+  }), */
+});
+
+export const getBookByIdSchema = Joi.object({
+  id: Joi.string()
+    .regex(/^[0-9a-fA-F]{24}$/)
+    .message("Invalid book ID: must be a valid MongoDB ObjectId")
+    .required()
+});
+
+export const updateByBookIdSchema = Joi.object({
+  id: Joi.string()
+    .regex(/^[0-9a-fA-F]{24}$/)
+    .message("Invalid book ID: must be a valid MongoDB ObjectId")
+    .required()
 });
 
 export const updateSchema = Joi.object({

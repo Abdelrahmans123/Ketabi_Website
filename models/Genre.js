@@ -8,6 +8,7 @@ const genreSchema = new mongoose.Schema(
       type: String,
       required: [true, "Genre name is required"],
       trim: true,
+      unique:true,
     },
     slug: {
       type: String,

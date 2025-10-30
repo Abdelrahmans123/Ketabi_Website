@@ -24,7 +24,6 @@ const BookSchema = new mongoose.Schema(
             required: true,
             trim: true,
         },
-
         price: {
             type: Number,
             required: true,
@@ -39,16 +38,13 @@ const BookSchema = new mongoose.Schema(
         stock: {
             type: Number,
         },
-
         noOfPages: {
             type: Number,
             required: true,
         },
-
         image: {
             url: String,
         },
-
         status: {
             type: String,
             enum: ["in stock", "out of stock", "removed"],
@@ -62,32 +58,19 @@ const BookSchema = new mongoose.Schema(
             mimeType: { type: String },
             uploadedAt: { type: Date },
         },
-
-        categoryRef: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Genre",
-            required: false,
-        },
         avgRating: {
             type: Number,
             default: 0
         },
-
         ratingsCount: {
             type: Number,
             default: 0
-        },
-        userRef: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "User",
-            required: false,
         },
         publisher: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
             required: true,
         }
-
     },
     { timestamps: true }
 );
