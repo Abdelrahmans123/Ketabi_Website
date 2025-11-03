@@ -1,4 +1,10 @@
-import { create, findById, findOne, updateOne } from "../models/services/db.js";
+import {
+    create,
+    findAll,
+    findById,
+    findOne,
+    updateOne,
+} from "../models/services/db.js";
 import User from "../models/User.js";
 import AppError from "../utils/AppError.js";
 import { compareHash, encrypt, generateHash } from "../utils/security.js";
@@ -20,15 +26,19 @@ export const register = asyncHandler(async (req, res, next) => {
         const error = new AppError("User already exists", 400);
         return next(error);
     }
-    if (password !== req.body.confirmPassword) {
-        const error = new AppError("Passwords do not match", 400);
-        return next(error);
-    }
     const hashedPassword = generateHash({ plainText: password });
     const encryptedPhone = encrypt({
         plainText: phone,
         secretKey: process.env.ENCRYPTION_KEY,
     });
+    const isPhoneExists = await findAll({
+        model: User,
+        filter: { phone: encryptedPhone },
+    });
+    if (isPhoneExists) {
+        const error = new AppError("Phone number already in use", 400);
+        return next(error);
+    }
     const otp = generateOTP();
     const otpHash = generateHash({ plainText: otp });
     const otpExpiry = Date.now() + 10 * 60 * 1000;
