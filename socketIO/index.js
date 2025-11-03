@@ -1,6 +1,6 @@
 import { Server } from "socket.io";
 import AppError from "../utils/AppError.js";
-import { verifyJWT } from "../utils/jwt.js";
+import { verifyAccessToken } from "../utils/jwt.js";
 import { registerSocket } from "./Chat/ChatController.js";
 
 let io;
@@ -21,7 +21,7 @@ export const initializeIO = (server) => {
         }
         const token = authToken.split(" ")[1];
         if (authToken) {
-            const user = verifyJWT(token);
+            const user = verifyAccessToken(token);
             const userTabs = connectedSockets.get(user.id) || [];
             const isFirstConnection = userTabs.length === 0;
             userTabs.push(socket.id);

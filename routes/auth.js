@@ -251,6 +251,7 @@ import {
     googleLogin,
     login,
     logout,
+    refreshAccessToken,
     register,
     registerWithFacebook,
     registerWithGoogle,
@@ -285,4 +286,5 @@ router.post("/login/google", googleLogin);
 router.post("/register/facebook", registerWithFacebook);
 router.post("/login/facebook", facebookLogin);
 router.post("/resend-confirmation-otp", resendConfirmationOtp);
+router.post("/refresh", refreshAccessToken);
 export default router;

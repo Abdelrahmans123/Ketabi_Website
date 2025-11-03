@@ -12,7 +12,11 @@ import { successResponse } from "../utils/successResponse.js";
 import { nanoid } from "nanoid";
 import { sendEmail } from "./../utils/sendEmail.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { generateJWT } from "../utils/jwt.js";
+import {
+    generateAccessToken,
+    generateRefreshToken,
+    verifyRefreshToken,
+} from "../utils/jwt.js";
 import { redisClient } from "../config/db.js";
 import { generateOTP } from "../utils/generateOTP.js";
 import { OAuth2Client } from "google-auth-library";
@@ -106,7 +110,8 @@ export const registerWithGoogle = asyncHandler(async (req, res, next) => {
     };
     const user = await create({ model: User, data });
     const jwtId = nanoid().toString();
-    const accessToken = generateJWT(user, jwtId);
+    const accessToken = generateAccessToken(user, jwtId);
+    const refreshToken = generateRefreshToken(user, jwtId);
     await redisClient.hSet(`token:${jwtId}`, {
         userId: user._id.toString(),
         twoFactorVerified: "true",
@@ -119,14 +124,8 @@ export const registerWithGoogle = asyncHandler(async (req, res, next) => {
         statusCode: 201,
         message: "User registered successfully",
         data: {
-            token: accessToken,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                avatar: user.avatar,
-                role: user.role,
-            },
+            accessToken,
+            refreshToken,
         },
     });
 });
@@ -159,7 +158,8 @@ export const googleLogin = asyncHandler(async (req, res, next) => {
         await redisClient.del(`token:${oldTokenKey}`);
     }
 
-    const accessToken = generateJWT(user, jwtId);
+    const accessToken = generateAccessToken(user, jwtId);
+    const refreshToken = generateRefreshToken(user, jwtId);
     await redisClient.hSet(`token:${jwtId}`, {
         userId: user._id.toString(),
         twoFactorVerified: "true",
@@ -172,13 +172,8 @@ export const googleLogin = asyncHandler(async (req, res, next) => {
         statusCode: 200,
         message: "Login successful",
         data: {
-            token: accessToken,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                avatar: user.avatar,
-            },
+            accessToken,
+            refreshToken,
         },
     });
 });
@@ -204,7 +199,8 @@ export const facebookLogin = asyncHandler(async (req, res, next) => {
     if (oldTokenKey) {
         await redisClient.del(`token:${oldTokenKey}`);
     }
-    const token = generateJWT(user, jwtId);
+    const token = generateAccessToken(user, jwtId);
+    const refreshToken = generateRefreshToken(user, jwtId);
     await redisClient.hSet(`token:${jwtId}`, {
         userId: user._id.toString(),
         twoFactorVerified: "true",
@@ -217,13 +213,8 @@ export const facebookLogin = asyncHandler(async (req, res, next) => {
         statusCode: 200,
         message: "Login successful",
         data: {
-            token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                avatar: user.avatar,
-            },
+            accessToken: token,
+            refreshToken,
         },
     });
 });
@@ -275,7 +266,8 @@ export const registerWithFacebook = asyncHandler(async (req, res, next) => {
     };
     const user = await create({ model: User, data });
     const jwtId = nanoid().toString();
-    const token = generateJWT(user, jwtId);
+    const token = generateAccessToken(user, jwtId);
+    const refreshToken = generateRefreshToken(user, jwtId);
     await redisClient.hSet(`token:${jwtId}`, {
         userId: user._id.toString(),
         twoFactorVerified: "true",
@@ -288,13 +280,8 @@ export const registerWithFacebook = asyncHandler(async (req, res, next) => {
         statusCode: 201,
         message: "User registered successfully",
         data: {
-            token,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                avatar: user.avatar,
-            },
+            accessToken: token,
+            refreshToken,
         },
     });
 });
@@ -366,7 +353,8 @@ export const login = asyncHandler(async (req, res, next) => {
         if (oldTokenKey) {
             await redisClient.del(`token:${oldTokenKey}`);
         }
-        const accessToken = generateJWT(user, jwtId);
+        const accessToken = generateAccessToken(user, jwtId);
+        const refreshToken = generateRefreshToken(user, jwtId);
         await redisClient.hSet(`token:${jwtId}`, {
             userId: user._id.toString(),
             twoFactorVerified: "true",
@@ -376,7 +364,13 @@ export const login = asyncHandler(async (req, res, next) => {
         await updateOne({
             model: User,
             query: { _id: user._id },
-            data: { isFirstLogin: false },
+            data: {
+                isFirstLogin: false,
+                refreshToken: refreshToken,
+                refreshTokenExpiresAt: new Date(
+                    Date.now() + 7 * 24 * 60 * 60 * 1000
+                ),
+            },
         });
         return successResponse({
             res,
@@ -384,6 +378,7 @@ export const login = asyncHandler(async (req, res, next) => {
             message: "Login successful",
             data: {
                 accessToken,
+                refreshToken,
             },
         });
     }
@@ -461,7 +456,8 @@ export const confirmLogin = asyncHandler(async (req, res, next) => {
     if (oldTokenKey) {
         await redisClient.del(`token:${oldTokenKey}`);
     }
-    const accessToken = generateJWT(user, jwtId);
+    const accessToken = generateAccessToken(user, jwtId);
+    const refreshToken = generateRefreshToken(user, jwtId);
     await redisClient.hSet(`token:${jwtId}`, {
         userId: user._id.toString(),
         twoFactorVerified: "true",
@@ -480,6 +476,7 @@ export const confirmLogin = asyncHandler(async (req, res, next) => {
         message: "Login successful",
         data: {
             accessToken,
+            refreshToken,
         },
     });
 });
@@ -606,5 +603,49 @@ export const resendConfirmationOtp = asyncHandler(async (req, res, next) => {
         res,
         statusCode: 200,
         message: "New OTP sent to your email",
+    });
+});
+export const refreshAccessToken = asyncHandler(async (req, res, next) => {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+        return next(new AppError("Refresh token is required", 400));
+    }
+    let decoded;
+    try {
+        decoded = verifyRefreshToken(refreshToken);
+    } catch (error) {
+        return next(new AppError("Invalid or expired refresh token", 401));
+    }
+    const user = await findById({ model: User, id: decoded.id });
+    if (!user) {
+        return next(new AppError("User not found", 404));
+    }
+    if (user.refreshToken !== refreshToken) {
+        return next(new AppError("Invalid refresh token", 401));
+    }
+    if (new Date() > user.refreshTokenExpiresAt) {
+        return next(new AppError("Refresh token expired", 401));
+    }
+    const newAccessToken = generateAccessToken(user, decoded.jti);
+    const newRefreshToken = generateRefreshToken(user, decoded.jti);
+    await updateOne({
+        model: User,
+        query: { _id: user._id },
+        data: {
+            refreshToken: newRefreshToken,
+            refreshTokenExpiresAt: new Date(
+                Date.now() + 7 * 24 * 60 * 60 * 1000
+            ),
+        },
+    });
+    await redisClient.expire(`token:${decoded.jti}`, 60 * 60); 
+    return successResponse({
+        res,
+        statusCode: 200,
+        message: "Token refreshed successfully",
+        data: {
+            accessToken: newAccessToken,
+            refreshToken: newRefreshToken,
+        },
     });
 });

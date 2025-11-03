@@ -92,6 +92,14 @@ const userSchema = new mongoose.Schema(
             default: false,
         },
         wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],
+        refreshToken: {
+            type: String,
+            default: null,
+        },
+        refreshTokenExpiresAt: {
+            type: Date,
+            default: null,
+        },
     },
 
     { timestamps: true }
