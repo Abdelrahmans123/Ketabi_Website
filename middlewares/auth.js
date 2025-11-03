@@ -2,7 +2,7 @@ import { redisClient } from "../config/db.js";
 import User from "../models/User.js";
 import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
-import { verifyJWT } from "../utils/jwt.js";
+import { verifyAccessToken } from "../utils/jwt.js";
 
 export const authenticate = asyncHandler(async (req, res, next) => {
     const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -11,7 +11,7 @@ export const authenticate = asyncHandler(async (req, res, next) => {
         return next(error);
     }
     const token = authHeader.split(" ")[1];
-    const decoded = verifyJWT(token);
+    const decoded = verifyAccessToken(token);
     const tokenData = await redisClient.hGetAll(`token:${decoded.jti}`);
     const user = await User.findById(decoded.id);
     const activeJti = await redisClient.get(`user:${decoded.id}:activeToken`);
