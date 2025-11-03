@@ -546,6 +546,7 @@ export const resetPassword = asyncHandler(async (req, res, next) => {
 });
 export const logout = asyncHandler(async (req, res, next) => {
     const { flag } = req.body;
+
     switch (flag) {
         case "all":
             const activeJti = await redisClient.get(
@@ -558,7 +559,11 @@ export const logout = asyncHandler(async (req, res, next) => {
             await updateOne({
                 model: User,
                 query: { _id: req.user.id },
-                data: { changeCredentialTime: new Date() },
+                data: {
+                    changeCredentialTime: new Date(),
+                    refreshToken: null,
+                    refreshTokenExpiresAt: null,
+                },
             });
             break;
         default:
@@ -569,7 +574,16 @@ export const logout = asyncHandler(async (req, res, next) => {
             if (storedJti === req.user.jti) {
                 await redisClient.del(`user:${req.user.id}:activeToken`);
             }
+            await updateOne({
+                model: User,
+                query: { _id: req.user.id },
+                data: {
+                    refreshToken: null,
+                    refreshTokenExpiresAt: null,
+                },
+            });
     }
+
     return successResponse({
         res,
         statusCode: 200,
@@ -638,7 +652,7 @@ export const refreshAccessToken = asyncHandler(async (req, res, next) => {
             ),
         },
     });
-    await redisClient.expire(`token:${decoded.jti}`, 60 * 60); 
+    await redisClient.expire(`token:${decoded.jti}`, 60 * 60);
     return successResponse({
         res,
         statusCode: 200,
