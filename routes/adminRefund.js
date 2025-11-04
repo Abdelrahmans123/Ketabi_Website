@@ -131,11 +131,13 @@ import {
 import { authenticate } from "../middlewares/auth.js";
 import { authorize } from "../middlewares/authorization.js";
 import { roleEnum } from "../utils/roleEnum.js";
+import { paramValidate, queryValidate, validate } from "../middlewares/validation.js";
+import { getRefundsSchema, updateRefundSchema, updatedRefundBodySchema } from "../validations/refundRequests.js";
 
 const router = express.Router();
 
-router.get("/",authenticate, authorize(roleEnum.admin), getRefunds); 
-router.patch("/:id", authenticate, authorize(roleEnum.admin), updateRefundStatus); 
-router.post("/:id/refund", authenticate, authorize(roleEnum.admin), processRefund);
+router.get("/",authenticate, authorize(roleEnum.admin), queryValidate(getRefundsSchema), getRefunds); 
+router.patch("/:id", authenticate, authorize(roleEnum.admin), paramValidate(updateRefundSchema), validate(updatedRefundBodySchema),updateRefundStatus); 
+router.post("/:id/refund", authenticate, authorize(roleEnum.admin), paramValidate(updateRefundSchema), processRefund);
 
 export default router;

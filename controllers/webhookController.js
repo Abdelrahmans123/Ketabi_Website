@@ -5,11 +5,12 @@ import User from "../models/User.js";
 import Book from "../models/Book.js";
 import Coupon from "../models/Coupon.js";
 import { sendEmail } from "../utils/sendEmail.js";
-import { deliveryStatus, itemType, paymentStatus } from "../utils/orderEnums.js";
+import { deliveryStatus, itemType, orderStatus, paymentStatus } from "../utils/orderEnums.js";
 import mongoose from "mongoose";
 import { findOneAndUpdate } from "../models/services/db.js";
 import PublisherOrder from "../models/publisherOrder.js";
 import Sale from "../models/Sale.js";
+import RefundRequest from "../models/refundRequests.js";
 
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -58,12 +59,33 @@ router.post(
                             }
                         }
                         order.paymentStatus = paymentStatus.FAILED;
+                        order.orderStatus = orderStatus.CANCELLED;
                         await order.save();
 
                         await sendEmail({
                             to: order.userEmail,
-                            subject: "Payment Failed",
-                            text: `Your payment for Order ${order.orderNumber} failed.`,
+                            subject: "❌ Payment Failed — Order Canceled",
+                            html: `
+        <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 10px; padding: 20px;">
+          <h2 style="color: #e74c3c; text-align: center;">❌ Payment Failed — Order Canceled</h2>
+
+          <p>Hi <strong>${order.userName}</strong>,</p>
+
+          <p>Unfortunately, your payment for <strong>Order #${order.orderNumber}</strong> could not be completed.</p>
+
+          <p>As a result, the order has been canceled, and any reserved stock for physical books has been restored.</p>
+
+          <p>If this was a mistake, you can place your order again from your cart or contact our support team for help.</p>
+
+          <p style="margin-top: 25px;">Thank you for shopping with us,</p>
+          <p style="font-weight: bold;">— The Ketabi Team</p>
+
+          <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;" />
+          <p style="font-size: 12px; color: #777; text-align: center;">
+            This is an automated message. Please do not reply to this email.
+          </p>
+        </div>
+        `,
                         });
                         break;
 
@@ -80,19 +102,7 @@ router.post(
 async function handleSuccessfulPayment(order, paymentIntent) {
 
     // Prevent processing expired or already-paid orders
-    if (
-        order.paymentStatus === paymentStatus.COMPLETED ||
-        order.paymentStatus === paymentStatus.EXPIRED
-    ) {
-        console.warn(
-            `⚠️ Payment received for order ${order._id} but it's already ${order.paymentStatus}. Ignoring.`
-        );
-        return;
-    }
-
-    if (order.expiresAt && order.expiresAt < new Date()) {
-        console.warn(`⚠️ Payment received for expired order ${order._id}. Ignoring.`);
-
+    if (order.paymentStatus === paymentStatus.EXPIRED) {
         await RefundRequest.create({
             order: order._id,
             user: order.user,
@@ -100,21 +110,34 @@ async function handleSuccessfulPayment(order, paymentIntent) {
             reason: "EXPIRED_ORDER",
             amount: paymentIntent.amount / 100,
             status: "PENDING",
+            paymentMethod: order.paymentMethod
         });
 
         await sendEmail({
             to: order.userEmail,
-            subject: "Payment Pending Review - Order Expired",
-            text: `
-Hi ${order.userName},
+            subject: "⚠️ Payment Pending Review — Order Expired",
+            html: `
+  <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 10px; padding: 20px;">
+    <h2 style="color: #e74c3c; text-align: center;">Order Expired — Payment Pending Review</h2>
 
-We received your payment for Order #${order.orderNumber}, but the order had already expired.
+    <p>Hi <strong>${order.userName}</strong>,</p>
 
-A refund request has been automatically logged and is pending review by our support team.
-You’ll receive an update shortly.
+    <p>We received your payment for <strong>Order #${order.orderNumber}</strong>, 
+    but unfortunately, the order had already expired before the payment was confirmed.</p>
 
-- The Ketabi Team
-`,
+    <p>A refund request has been automatically created and is currently 
+    <strong>pending review</strong> by our support team. You’ll receive an update as soon as it’s processed.</p>
+
+    <p style="margin-top: 25px;">Thank you for your understanding,</p>
+    <p style="font-weight: bold;">— The Ketabi Team</p>
+
+    <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;" />
+
+    <p style="font-size: 12px; color: #777; text-align: center;">
+      This is an automated message. Please do not reply to this email.
+    </p>
+  </div>
+  `,
         });
 
         return;
@@ -125,7 +148,7 @@ You’ll receive an update shortly.
         await session.withTransaction(async () => {
             order.paymentStatus = paymentStatus.COMPLETED;
             order.transactionId = paymentIntent.id;
-
+            order.orderStatus = orderStatus.PROCESSING;
             let isShippingNeeded = false;
             for (const item of order.items) {
                 item.paymentStatus = paymentStatus.COMPLETED;
@@ -142,7 +165,7 @@ You’ll receive an update shortly.
                 if (!acc[pubId]) acc[pubId] = [];
                 acc[pubId].push(item);
                 return acc;
-            }, {});        
+            }, {});
 
             for (const [publisherId, items] of Object.entries(grouped)) {
                 const totalPrice = items.reduce(
@@ -152,7 +175,7 @@ You’ll receive an update shortly.
                         ((item.discount || 0) / 100) * item.price * item.quantity,
                     0
                 );
-
+                const finalPrice = totalPrice * (1 - (order.discountApplied || 0) / 100);
                 const pubOrder = {
                     publisher: publisherId,
                     order: order._id,
@@ -170,6 +193,7 @@ You’ll receive an update shortly.
                     coupon: order.coupon || "No Coupon",
                     couponDiscount: order.discountApplied || 0,
                     totalPrice,
+                    finalPrice,
                     ...(isShippingNeeded && { shippingAddress: order.shippingAddress }),
                 };
 
@@ -195,27 +219,15 @@ You’ll receive an update shortly.
                             order: order._id,
                             items: saleItems,
                             totalAmount: saleItems.reduce((sum, i) => sum + i.total, 0),
+                            finalPrice: (saleItems.reduce((sum, i) => sum + i.total, 0)) * (1 - (order.discountApplied || 0) / 100),
                             coupon: order.coupon || "No Coupon",
                             couponDiscount: order.discountApplied || 0,
                             paymentIntentId: paymentIntent.id,
+                            paymentMethod: order.paymentMethod
                         },
                     ],
                     { session }
                 );
-            }
-
-            // Atomic stock update: ensure stock doesn’t go below 0
-            for (const item of order.items) {
-                if (item.type === itemType.PHYSICAL) {
-                    const result = await Book.updateOne(
-                        { _id: item.book, stock: { $gte: item.quantity } },
-                        { $inc: { stock: -item.quantity } },
-                        { session }
-                    );
-                    if (result.matchedCount === 0) {
-                        throw new Error(`Insufficient stock for book ${item.book}`);
-                    }
-                }
             }
 
             // Coupon usage
@@ -233,8 +245,8 @@ You’ll receive an update shortly.
 
     // book list for email 
     const bookIds = order.items.map(item => item.book);
-    const books = await Book.find({ _id: { $in: bookIds } }).select("title");
-    const bookNames = books.map(b => `- ${b.title}`).join("\n");
+    const books = await Book.find({ _id: { $in: bookIds } }).select("name");
+    const bookNames = books.map(b => `- ${b.name}`).join("\n");
 
     // Adjust user info if this is a gift
     let buyerName = order.userName;
@@ -253,44 +265,69 @@ You’ll receive an update shortly.
     // Email to buyer
     sendEmail({
         to: buyerEmail,
-        subject: "Order Confirmation",
-        text: `
-Hi ${buyerName},
+        subject: "✅ Order Confirmation — Payment Successful",
+        html: `
+  <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 10px; padding: 20px;">
+    <h2 style="color: #2ecc71; text-align: center;">🎉 Order Confirmed!</h2>
 
-Your payment for Order #${order.orderNumber} was successful. 🎉
+    <p>Hi <strong>${buyerName}</strong>,</p>
 
-Here are the books you purchased:
-${bookNames}
+    <p>Your payment for <strong>Order #${order.orderNumber}</strong> was successful.</p>
 
-${order.isGift
-                ? `\nYou sent these as a gift to ${recipientEmail}.`
-                : "\nThank you for your purchase!"
+    <p><strong>Books you purchased:</strong></p>
+    <div style="background: #f9f9f9; padding: 10px 15px; border-radius: 6px; white-space: pre-line;">
+      ${bookNames}
+    </div>
+
+    ${order.isGift
+                ? `<p>You sent these as a gift to <strong>${recipientEmail}</strong>.</p>`
+                : `<p>Thank you for your purchase! We hope you enjoy your new books 📚.</p>`
             }
 
-- The Ketabi Team
-`,
+    <p style="margin-top: 25px;">Warm regards,</p>
+    <p style="font-weight: bold;">— The Ketabi Team</p>
+
+    <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;" />
+    <p style="font-size: 12px; color: #777; text-align: center;">
+      This is an automated message. Please do not reply to this email.
+    </p>
+  </div>
+  `,
     }).catch(console.error);
 
     // Gift email
     if (order.isGift && order.recipientEmail) {
         sendEmail({
             to: recipientEmail,
-            subject: "🎁 You've received a gift!",
-            text: `
-Hi ${recipientName},
+            subject: "🎁 You've Received a Gift from Ketabi!",
+            html: `
+    <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 10px; padding: 20px;">
+      <h2 style="color: #3498db; text-align: center;">🎁 You've Received a Gift!</h2>
 
-You’ve received the following books as a gift from ${buyerEmail}:
+      <p>Hi <strong>${recipientName}</strong>,</p>
 
-${bookNames}
+      <p>You’ve received the following books as a gift from <strong>${buyerEmail}</strong>:</p>
 
-${order.personalizedMessage
-                    ? `\nPersonal message: "${order.personalizedMessage}"`
+      <div style="background: #f9f9f9; padding: 10px 15px; border-radius: 6px; white-space: pre-line;">
+        ${bookNames}
+      </div>
+
+      ${order.personalizedMessage
+                    ? `<p style="margin-top: 15px;"><em>Personal message:</em> "${order.personalizedMessage}"</p>`
                     : ""
                 }
 
-Enjoy your reading!
-- The Ketabi Team
-`,
+      <p>Enjoy your reading adventure 📖!</p>
+
+      <p style="margin-top: 25px;">With love,</p>
+      <p style="font-weight: bold;">— The Ketabi Team</p>
+
+      <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;" />
+      <p style="font-size: 12px; color: #777; text-align: center;">
+        This is an automated message. Please do not reply to this email.
+      </p>
+    </div>
+    `,
         }).catch(console.error);
     }
 

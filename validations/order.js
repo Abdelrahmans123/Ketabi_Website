@@ -85,9 +85,14 @@ export const createOrderSchema = Joi.object({
       }),
       otherwise: Joi.optional(),
     }),
-  personalizedMessage: Joi.string().optional().messages({
-    'string.base': 'Personalized message must be a string',
-  }),
+  personalizedMessage: Joi.string()
+    .when('isGift', {
+      is: true,
+      then: Joi.required().messages({
+        'any.required': 'personalized message is required when the order is marked as a gift',
+      }),
+      otherwise: Joi.optional(),
+    }),
   coupon: Joi.string().optional()
 });
 

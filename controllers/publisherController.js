@@ -8,6 +8,7 @@ import Book from "../models/Book.js";
 import { Order } from "../models/Order.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { findAll, findById } from "../models/services/db.js";
+import mongoose from "mongoose";
 
 export const createPublisher = asyncHandler(async (req, res, next) => {
     const { publisherId } = req.body;
@@ -27,110 +28,115 @@ export const createPublisher = asyncHandler(async (req, res, next) => {
 
 export const getPublishedBooks = asyncHandler(async (req, res, next) => {
     const { publisherId } = req.params;
+    let { page, limit } = req.query;
 
     const publisher = await findById({
         model: User,
         id: publisherId,
-        populate: {
-            path: "booksPublished",
-            model: "Book",
-        },
     });
 
     if (!publisher) throw new AppError("Publisher not found", 404);
+
+    if (page > publisher.booksPublished.length / limit) {
+        page = Math.ceil(publisher.booksPublished.length / limit) || 0;
+    }
+
+    const skip = (page - 1) * limit;
+
+    const publishedBooks = await findAll({
+        model: Book,
+        filter: { _id: { $in: publisher.booksPublished } },
+        skip,
+        limit
+    });
+
+    const totalPages = Math.ceil(publisher.booksPublished.length / limit) || 0;
+    const totalBooks = publisher.booksPublished.length || 0;
 
     return successResponse({
         res,
         statusCode: 200,
         message: "Published books retrieved successfully",
-        data: publisher.booksPublished || [],
+        data: {
+            page,
+            limit,
+            totalPages,
+            totalBooks,
+            count: publishedBooks.length,
+            books: publishedBooks
+        },
     });
 });
 
 export const getPublisherOrders = asyncHandler(async (req, res, next) => {
     const { publisherId } = req.params;
+    let { page, limit } = req.query;
     const user = req.user;
 
     if (user.role === roleEnum.publisher && user.id !== publisherId) {
         return next(new AppError("You can only view your own orders", 403));
     }
 
+    const total = await PublisherOrder.countDocuments({ publisher: publisherId });
+    const totalPages = Math.ceil(total / limit) || 0;
+
+    if (totalPages < page) {
+        page = totalPages;
+    }
+
+    const skip = (page - 1) * limit;
+
     const publisherOrders = await findAll({
         model: PublisherOrder,
-        query: { publisher: publisherId },
+        filter: { publisher: publisherId },
+        skip,
+        limit: limit,
+        sort: { createdAt: -1 }
     });
-
-    if (!publisherOrders.length)
-        throw new AppError("No orders for this publisher", 404);
 
     return successResponse({
         res,
         statusCode: 200,
         message: "Orders for publisher retrieved successfully",
-        data: publisherOrders,
+        data: {
+            page,
+            limit,
+            total,
+            totalPages,
+            count: publisherOrders.length,
+            orders: publisherOrders
+        }
     });
 });
 
 export const updatePublisherOrder = asyncHandler(async (req, res, next) => {
     const { publisherOrderId } = req.params;
-    const { deliveryStatus, paymentStatus, BookId } = req.body;
+    const { deliveryStatus, paymentStatus, bookId } = req.body;
 
     if (!deliveryStatus && !paymentStatus)
         throw new AppError("Nothing changed", 404);
 
-    const book = await Book.findById(BookId);
-    if (!book) throw new AppError("Book not found", 404);
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    const publisherOrder = await findById({
-        model: PublisherOrder,
-        id: publisherOrderId,
-    });
-    const publisherId = publisherOrder.publisher;
-    if (!publisherOrder) throw new AppError("Publisher order not found", 404);
+    try {
+        const publisherOrder = await PublisherOrder.findById(publisherOrderId).session(session);
+        if (!publisherOrder) throw new AppError("Publisher order not found", 404);
 
-    // logged-in publisher owns this order
-    if (
-        publisherOrder.publisher.toString() !== publisherId &&
-        req.user.role !== roleEnum.admin
-    ) {
-        return next(
-            new AppError("You are not authorized to update this order", 403)
-        );
-    }
+        const publisherId = publisherOrder.publisher.toString();
 
-    // Update PublisherOrder fields
-    publisherOrder.items = publisherOrder.items.map((item) => {
-        if (item.book.toString() === BookId) {
-            return {
-                ...item.toObject(),
-                deliveryStatus: deliveryStatus || item.deliveryStatus,
-                paymentStatus: paymentStatus || item.paymentStatus,
-            };
+        if (
+            req.user.role === roleEnum.publisher &&
+            req.user.id !== publisherId
+        ) {
+            throw new AppError("You are not authorized to update this order", 403);
         }
-        return item;
-    });
 
-    await publisherOrder.save();
-
-
-    const mainOrder = await findById({
-        model: Order,
-        id: publisherOrder.order,
-    });
-    if (mainOrder) {
-        mainOrder.items = mainOrder.items.map((item) => {
-            console.log(
-                "item.publisher.toString(): ",
-                item.publisher.toString()
-            );
-            console.log("publisherId: ", publisherId);
-            console.log("item.book.toString(): ", item.book.toString());
-            console.log("BookId: ", BookId);
-
-            if (
-                item.publisher.toString() === publisherId.toString() &&
-                item.book.toString() === BookId
-            ) {
+        let hasUpdated = false;
+        
+        publisherOrder.items = publisherOrder.items.map((item) => {
+            if (item.book.toString() === bookId && (deliveryStatus !== item.deliveryStatus || paymentStatus !== item.paymentStatus)) {
+                hasUpdated = true;
                 return {
                     ...item.toObject(),
                     deliveryStatus: deliveryStatus || item.deliveryStatus,
@@ -140,35 +146,132 @@ export const updatePublisherOrder = asyncHandler(async (req, res, next) => {
             return item;
         });
 
-        await mainOrder.save();
+        if (!hasUpdated) {
+            await session.abortTransaction();
+            try {
+                return next(new AppError("Nothing was udpated in the order", 404));
+            } finally {
+                session.endSession();
+            }
+        }
+
+        await publisherOrder.save({ session });
+
+        const mainOrder = await Order.findById(publisherOrder.order).session(session);
+
+        if (!mainOrder)
+            throw new AppError("Main order not found", 404);
+
+        mainOrder.items = mainOrder.items.map((item) => {
+            if (
+                item.publisher.toString() === publisherId &&
+                item.book.toString() === bookId
+            ) {
+                return {
+                    ...item.toObject(),
+                    deliveryStatus: deliveryStatus || item.deliveryStatus,
+                    paymentStatus: paymentStatus || item.paymentStatus,
+                };
+            }
+            return item;
+        });
+        await mainOrder.save({ session });
+
+        const book = await Book.findById(bookId).session(session);
+
+
+        let textUpdate = "";
+        let htmlUpdate = "";
+
+        if (paymentStatus && deliveryStatus) {
+            textUpdate = `Your book "${book.name}" from order #${mainOrder.orderNumber} has been updated.
+  Delivery Status: ${deliveryStatus}
+  Payment Status: ${paymentStatus}`;
+
+            htmlUpdate = `
+  <div style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 20px;">
+    <div style="max-width: 600px; margin: auto; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+      <h2 style="color: #2c3e50;">📦 Order Update</h2>
+      <p style="font-size: 16px; color: #333;">
+        Hello,<br><br>
+        Your book <strong>${book.name}</strong> from order <strong>#${mainOrder.orderNumber}</strong> has been updated.
+      </p>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+        <tr>
+          <td style="padding: 8px; border: 1px solid #ddd;">Delivery Status</td>
+          <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${deliveryStatus}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px; border: 1px solid #ddd;">Payment Status</td>
+          <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${paymentStatus}</td>
+        </tr>
+      </table>
+      <p style="margin-top: 20px; color: #555;">
+        Thank you for shopping with us!<br>
+        <strong>Ketabi Team</strong>
+      </p>
+    </div>
+  </div>`;
+        }
+        else if (deliveryStatus) {
+            textUpdate = `Your book "${book.name}" from order #${mainOrder.orderNumber} has an updated Delivery Status: ${deliveryStatus}`;
+
+            htmlUpdate = `
+  <div style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 20px;">
+    <div style="max-width: 600px; margin: auto; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+      <h2 style="color: #2c3e50;">🚚 Delivery Update</h2>
+      <p style="font-size: 16px; color: #333;">
+        Your book <strong>${book.name}</strong> from order <strong>#${mainOrder.orderNumber}</strong> is now marked as:
+        <strong style="color: #007bff;">${deliveryStatus}</strong>
+      </p>
+      <p style="margin-top: 20px; color: #555;">
+        You can track your order in your account.<br>
+        <strong>Ketabi Team</strong>
+      </p>
+    </div>
+  </div>`;
+        }
+        else if (paymentStatus) {
+            textUpdate = `Your book "${book.name}" from order #${mainOrder.orderNumber} has an updated Payment Status: ${paymentStatus}`;
+
+            htmlUpdate = `
+  <div style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 20px;">
+    <div style="max-width: 600px; margin: auto; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+      <h2 style="color: #2c3e50;">💳 Payment Update</h2>
+      <p style="font-size: 16px; color: #333;">
+        The payment status for your book <strong>${book.name}</strong> from order 
+        <strong>#${mainOrder.orderNumber}</strong> has been updated to:
+        <strong style="color: #007bff;">${paymentStatus}</strong>
+      </p>
+      <p style="margin-top: 20px; color: #555;">
+        Thank you for your purchase!<br>
+        <strong>Ketabi Team</strong>
+      </p>
+    </div>
+  </div>`;
+        }
+
+
+        await session.commitTransaction();
+        session.endSession();
+
+        await sendEmail({
+            to: mainOrder.userEmail,
+            subject: `Order Update: ${mainOrder.orderNumber}`,
+            text: textUpdate,
+            html: htmlUpdate
+        });
+
+        return successResponse({
+            res,
+            statusCode: 200,
+            message: "Publisher order and main order updated successfully",
+            data: { publisherOrder, mainOrder },
+        });
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        return next(error);
     }
-
-    // an email message
-    const bookItem = publisherOrder.items.find(
-        (i) => i.book.toString() === BookId
-    );
-
-    let textUpdate = "";
-    if (paymentStatus && deliveryStatus)
-        textUpdate = `Your book: ${book.name} from order ${mainOrder.orderNumber}: Delivery Status: ${deliveryStatus} and Payment Status as ${paymentStatus}.`;
-    else if (deliveryStatus)
-        textUpdate = `Your book: ${book.name} from order ${mainOrder.orderNumber}: Delivery Status: ${deliveryStatus}.`;
-    else if (paymentStatus)
-        textUpdate = `Your book: ${book.name} from order ${mainOrder.orderNumber}: Payment Status as ${paymentStatus}.`;
-
-    await sendEmail({
-        to: mainOrder.userEmail,
-        subject: "Order Update",
-        text: textUpdate,
-    });
-
-    return successResponse({
-        res,
-        statusCode: 200,
-        message: "Publisher order and main order updated successfully",
-        data: {
-            publisherOrder,
-            mainOrder,
-        },
-    });
 });

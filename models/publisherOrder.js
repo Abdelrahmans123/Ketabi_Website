@@ -27,6 +27,7 @@ const publisherOrderSchema = new mongoose.Schema({
     country: { type: String },
     phoneNumber: { type: String },
   },
+  finalPrice: {type: Number, min:0}
 }, { timestamps: true });
 
 publisherOrderSchema.index({ publisher: 1 })

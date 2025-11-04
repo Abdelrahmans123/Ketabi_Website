@@ -54,11 +54,6 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     const userEmail = req.user.email;
     const userName = req.user.name;
 
-    // Validate items
-    if (!items || items.length === 0) {
-        return next(new AppError("No items in the order", 400));
-    }
-
     // Validate coupon
     const couponData = await getCouponData(coupon);
     if (!couponData) {
@@ -83,40 +78,69 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
     // Validate gift user email
     if (isGift && recipientEmail === userEmail) {
-        return next(new AppError(`Can't gift yourself, please give us gift email.`, 400));
+        return next(new AppError(`Can't gift yourself.`, 400));
     }
 
-    const library = req.user.library || [];
+    let library = req.user.library || [];
+
+    // If gift, ensure recipient exists
+    if (isGift) {
+        const receiver = await findOne({
+            model: User,
+            query: { email: recipientEmail },
+        });
+
+        if (!receiver) {
+            return next(new AppError(`No such user: ${recipientEmail}`, 400));
+        }
+        library = receiver.library || [];
+    }
+
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    const abort = async (msg, code = 400) => {
+        await session.abortTransaction();
+        try {
+            return next(new AppError(msg, code));
+        } finally {
+            session.endSession();
+        }
+    };
+
     const libraryBookIds = library.map(item => item.toString());
 
     // Calculate total price & check if EBOOK is already in library
     for (const item of items) {
-        const book = await Book.findById(item.book);
+        const book = await Book.findById(item.book).session(session);
 
         // book not found in DB
         if (!book) {
-            return next(new AppError(`Book with ID ${item.book}`, 404));
+            return await abort(`Book with ID ${item.book} not found!`, 404);
         }
 
         // Ebook found in library
-        if (!isGift && item.type === itemType.EBOOK && libraryBookIds.includes(item.book)) {
-            return next(new AppError(`${book.name} was found in your library`, 400));
+        if (item.type === itemType.EBOOK && libraryBookIds.includes(item.book)) {
+            if (isGift) return await abort(`The ebook version of ${book.name} was found in his/her ${recipientEmail} library`, 400);
+            return await abort(`The ebook version of ${book.name} was found in your library`, 400);
         }
 
         // Check physical book   stock
         if (item.type === itemType.PHYSICAL) {
             if (item.quantity > book.stock) {
-                return next(new AppError(`Not enough stock for ${book.name}`, 400));
+                return await abort(`Not enough stock for ${book.name}`, 400);
             }
 
             // Reserve stock atomically
             const result = await Book.updateOne(
                 { _id: book._id, stock: { $gte: item.quantity } },
-                { $inc: { stock: -item.quantity } }
+                { $inc: { stock: -item.quantity } },
+                { session }
             );
 
             if (result.matchedCount === 0) {
-                return next(new AppError(`Insufficient stock for ${book.name}`, 400));
+                return await abort(`Not enough stock for ${book.name}`, 400);
             }
         }
 
@@ -128,9 +152,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
                 shippingAddress.country &&
                 shippingAddress.phoneNumber)
         ) {
-            return next(
-                new AppError(`Incomplete shipping info for ${book.name} with id: ${book._id}`, 400)
-            );
+            return await abort(`Incomplete shipping info for ${book.name}`, 400);
         }
 
         // Handle ebooks
@@ -153,11 +175,9 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
     // Check coupon minimum order
     if (coupon !== "No Coupon" && totalPrice < couponData.minOrderValue) {
-        return next(
-            new AppError(
-                `Order total (${totalPrice}) is below the coupon minimum (${couponData.minOrderValue})`,
-                400
-            )
+        return await abort(
+            `Order total (${totalPrice}) is below the coupon minimum (${couponData.minOrderValue})`,
+            400
         );
     }
 
@@ -165,18 +185,6 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     const finalPrice = Math.round(
         totalPrice * (1 - couponDiscountPercentage / 100) * 100
     ) / 100;
-
-    // If gift, ensure recipient exists
-    if (isGift) {
-        const receiver = await findOne({
-            model: User,
-            query: { email: recipientEmail },
-        });
-
-        if (!receiver) {
-            return next(new AppError(`No such user: ${recipientEmail}`, 400));
-        }
-    }
 
     // Create order (PENDING)
     const order = new Order({
@@ -196,20 +204,33 @@ export const createOrder = asyncHandler(async (req, res, next) => {
         paymentStatus: paymentStatus.PENDING,
     });
 
-    await order.save();
-    // Create Stripe payment intent
-    const payment = await processPayment(order);
+    await order.save({ session });
+    await session.commitTransaction();
+    session.endSession();
 
-    // Attach Stripe info (still pending)
-    order.transactionId = payment.id;
-    await order.save();
-
-    // Clear user's cart immediately
-    await findOneAndUpdate({
-        model: Cart,
-        query: { user: userId },
-        data: { $set: { items: [] } },
-    });
+    let payment;
+    try {
+        // Create Stripe payment intent
+        payment = await processPayment(order);
+        order.transactionId = payment.id;
+        await order.save();
+    } catch (error) {
+        for (const item of order.items) {
+            if (item.type === itemType.PHYSICAL) {
+                await Book.updateOne(
+                    { _id: item.book },
+                    { $inc: { stock: item.quantity } }
+                );
+            }
+        }
+        order.paymentStatus = paymentStatus.FAILED;
+        await order.save();
+        return next(
+            new AppError(
+                "Payment failed. Try again.", 502
+            )
+        );
+    }
 
     // Return client secret to frontend
     res.status(201).json({
@@ -230,7 +251,7 @@ export const getOrdersAdmin = asyncHandler(async (req, res, next) => {
     const filters = {};
 
     if (user) filters.user = user;
-    if (email) filters.email = email;
+    if (email) filters.userEmail = email;
     if (orderStatus) filters.orderStatus = orderStatus;
     if (orderNumber) filters.orderNumber = orderNumber;
     if (paymentStatus) filters.paymentStatus = paymentStatus;

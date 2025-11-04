@@ -58,7 +58,7 @@ const orderSchema = new mongoose.Schema({
     personalizedMessage: { type: String },
     expiresAt: {
         type: Date,
-        default: () => new Date(Date.now() + 15 * 60 * 1000) 
+        default: () => new Date(Date.now() + 1 * 60 * 1000) 
     },
 }, { timestamps: true });
 

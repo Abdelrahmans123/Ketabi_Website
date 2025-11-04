@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { paymentStatus } from "../utils/orderEnums.js";
+import { paymentMethods, paymentStatus, refundStatus } from "../utils/orderEnums.js";
 
 const refundRequestSchema = new mongoose.Schema(
   {
@@ -29,8 +29,8 @@ const refundRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED", "REFUNDED"],
-      default: "PENDING",
+      enum: Object.values(refundStatus),
+      default: refundStatus.PENDING,
     },
     amount: {
       type: Number,
@@ -49,6 +49,11 @@ const refundRequestSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Admin",
     },
+    paymentMethod: {
+      type: String,
+      enum: Object.values(paymentMethods),
+      required: true,
+    }
   },
   { timestamps: true }
 );

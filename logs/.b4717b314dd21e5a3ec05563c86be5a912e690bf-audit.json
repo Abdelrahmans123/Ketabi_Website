@@ -24,6 +24,21 @@
             "date": 1761771606032,
             "name": "/home/abdelghafaar/ITI/Projects/Ketabi_Website/logs/error-2025-10-30.log",
             "hash": "40d4bafb27b7f2d3a443491188e9df4007a7faeeb70f00df1b3acd7885e932cd"
+        },
+        {
+            "date": 1762120736611,
+            "name": "/home/abdelghafaar/ITI/Projects/Ketabi_Website/logs/error-2025-11-02.log",
+            "hash": "a4964c10e4d3961c8ec94a6a4df992f106fbd80034eb0fd622aec23c4e12b535"
+        },
+        {
+            "date": 1762120827898,
+            "name": "/home/abdelghafaar/ITI/Projects/Ketabi_Website/logs/error-2025-11-03.log",
+            "hash": "7f033ae807db7ee5aaa48ea6224d113f7596b79373a0cf085d29f073d0da4720"
+        },
+        {
+            "date": 1762207201399,
+            "name": "/home/abdelghafaar/ITI/Projects/Ketabi_Website/logs/error-2025-11-04.log",
+            "hash": "8b4a36d9de21d485110262c4e792620b83ccf0ad0a2491b5e42f93e2213fe025"
         }
     ],
     "hashType": "sha256"

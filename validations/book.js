@@ -14,7 +14,8 @@ export const createSchema = Joi.object({
   description: Joi.string().max(1000).optional().messages({
     "string.max": "Description must be at most 1000 characters",
   }),
-  Edition: Joi.string().max(50).optional().messages({
+  Edition: Joi.string().max(50).required().messages({
+    "any.required": "Edition is required",
     "string.max": "Edition must be at most 50 characters",
   }),
   categoryName: Joi.string().min(2).max(50).required().messages({
