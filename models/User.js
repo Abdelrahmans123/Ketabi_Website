@@ -100,6 +100,20 @@ const userSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+        phoneOtp: { type: String, default: null },
+        phoneOtpExpires: { type: Date, default: null },
+        phoneOtpAttempts: { type: Number, default: 0 },
+        isPhoneVerified: { type: Boolean, default: false },
+        phoneVerifiedAt: { type: Date, default: null },
+        telegramChatId: {
+            type: String,
+            required: false,
+            index: true,
+        },
+        telegramUsername: {
+            type: String,
+            required: false,
+        },
     },
 
     { timestamps: true }

@@ -39,7 +39,7 @@ export const register = asyncHandler(async (req, res, next) => {
         model: User,
         filter: { phone: encryptedPhone },
     });
-    if (isPhoneExists) {
+    if (isPhoneExists && isPhoneExists.length > 0) {
         const error = new AppError("Phone number already in use", 400);
         return next(error);
     }
@@ -58,6 +58,7 @@ export const register = asyncHandler(async (req, res, next) => {
             role,
             confirmEmailOtp: otpHash,
             confirmEmailOtpExpires: otpExpiry,
+            isPhoneVerified: false,
             isFirstLogin: true,
         },
     });
@@ -66,7 +67,6 @@ export const register = asyncHandler(async (req, res, next) => {
         subject: "Welcome to Our App - Confirm Your Email",
         text: `Your OTP is ${otp}. Please use it to confirm your email.`,
     });
-
     req.session.userId = newUser._id;
     return successResponse({
         res,
@@ -324,6 +324,86 @@ export const confirmEmail = asyncHandler(async (req, res, next) => {
         res,
         statusCode: 200,
         message: "Email confirmed successfully",
+    });
+});
+export const verifyPhoneOtp = asyncHandler(async (req, res, next) => {
+    const { otp } = req.body;
+    const userId = req.session.userId || req.user?.id;
+
+    if (!userId) {
+        return next(
+            new AppError("Session expired or user not authenticated", 401)
+        );
+    }
+    const user = await findById({ model: User, id: userId });
+    if (!user) {
+        return next(new AppError("User not found", 404));
+    }
+
+    if (user.isPhoneVerified) {
+        return next(new AppError("Phone number already verified", 400));
+    }
+
+    if (!user.phoneOtp || !user.phoneOtpExpires) {
+        return next(new AppError("No OTP request found", 400));
+    }
+
+    if (Date.now() > user.phoneOtpExpires) {
+        return next(new AppError("OTP has expired", 400));
+    }
+    if (user.phoneOtpAttempts >= 5) {
+        await updateOne({
+            model: User,
+            query: { _id: user._id },
+            data: {
+                phoneOtp: null,
+                phoneOtpExpires: null,
+                phoneOtpAttempts: 0,
+            },
+        });
+        return next(
+            new AppError(
+                "Too many invalid attempts. Please request a new OTP.",
+                403
+            )
+        );
+    }
+
+    const isOtpValid = compareHash({
+        plainText: otp,
+        hash: user.phoneOtp,
+    });
+
+    if (!isOtpValid) {
+        await updateOne({
+            model: User,
+            query: { _id: user._id },
+            data: { $inc: { phoneOtpAttempts: 1 } },
+        });
+        const attemptsLeft = 5 - (user.phoneOtpAttempts + 1);
+        return next(
+            new AppError(
+                `Invalid OTP. ${attemptsLeft} attempts remaining.`,
+                400
+            )
+        );
+    }
+
+    await updateOne({
+        model: User,
+        query: { _id: user._id },
+        data: {
+            isPhoneVerified: true,
+            phoneVerifiedAt: new Date(),
+            phoneOtp: null,
+            phoneOtpExpires: null,
+            phoneOtpAttempts: 0,
+        },
+    });
+    return successResponse({
+        res,
+        statusCode: 200,
+        message: "Phone number verified successfully",
     });
 });
 export const login = asyncHandler(async (req, res, next) => {
