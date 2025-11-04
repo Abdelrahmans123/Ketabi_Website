@@ -39,9 +39,11 @@ export const AddBook = asyncHandler(async (req, res, next) => {
     // check if publisher has a published book with the same name
     const publishedBooksIds = req.user.booksPublished;
 
+
+    
     for (const bookId of publishedBooksIds) {
         const book = await findById({ model: Book, id: bookId });
-        if (book.name === req.body.name) {
+        if (book.name === req.body.name && book.Edition === req.body.Edition) {
             const error = new AppError("Can't post the same book twice!", 404);
             return next(error);
         }
