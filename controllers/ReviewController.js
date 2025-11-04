@@ -18,18 +18,14 @@ export const createReview = asyncHandler(async (req, res, next) => {
 
     const { book, rating, title, body } = req.body;
 
-    const bookExists = await Book.exists({ _id: book });
-    if (!bookExists) throw new AppError("Book not found", 404);
-    const orders = await findAll({ model: Order });
-    const purchased = await Order.exists({
-        user: userId,
-        paymentStatus: paymentStatus.COMPLETED,
-        "items.book": new mongoose.Types.ObjectId(book),
-    });
-
-    if (!purchased) {
+    const purchasedBooks = req.user.purchasedBooks.toString();
+    
+    if (!purchasedBooks.includes(book)){
         throw new AppError("You can review only books you purchased", 403);
     }
+
+    const bookExists = await Book.exists({ _id: book });
+    if (!bookExists) throw new AppError("Book not found", 404);
 
     const review = await Review.create({
         user: userId,

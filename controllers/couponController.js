@@ -101,9 +101,14 @@ export const addCoupon = asyncHandler(async (req, res, next) => {
 });
 
 export const editCoupon = asyncHandler(async (req, res, next) => {
-    const id = req.params.CouponId;
+    const { CouponId } = req.params;
 
-    const coupon = await findById({ model: Coupon, id });
+    if (Object.keys(req.body).length === 0) {
+        const error = new AppError("Empty Updates", 404);
+        return next(error);
+    }
+
+    const coupon = await findById({ model: Coupon, id: CouponId });
 
     if (!coupon) {
         const error = new AppError("Coupon not found", 404);
@@ -120,6 +125,7 @@ export const editCoupon = asyncHandler(async (req, res, next) => {
         isActive = coupon.isActive,
     } = req.body;
 
+
     const CouponData = {
         code,
         description,
@@ -130,14 +136,29 @@ export const editCoupon = asyncHandler(async (req, res, next) => {
         isActive,
     };
 
+    const noChanges = Object.entries(CouponData).every(([key, value]) => {
+        const originalValue = coupon[key];
+        console.log("Value: ",value);
+        console.log("originalValue: ",originalValue);
+        
+        if (originalValue instanceof Date) {
+            return new Date(originalValue).getTime() === new Date(value).getTime();
+        }
+        return originalValue === value;
+    });
+
+    if (noChanges) {
+        return next(new AppError("No changes detected — coupon is already up to date", 400));
+    }
+    
     const updatedCoupon = await findOneAndUpdate({
         model: Coupon,
-        query: { _id: id },
+        query: { _id: CouponId },
         data: CouponData,
     });
 
     if (!updatedCoupon) {
-        return next(new AppError("Coupon not found", 404));
+        return next(new AppError("Coupon not found during the updates", 404));
     }
 
     return successResponse({
@@ -149,16 +170,16 @@ export const editCoupon = asyncHandler(async (req, res, next) => {
 });
 
 export const deleteCoupon = asyncHandler(async (req, res, next) => {
-    const id = req.params.CouponId;
+    const {CouponId} = req.params;
 
-    const coupon = await findById({ model: Coupon, id });
+    const coupon = await findById({ model: Coupon, id: CouponId });
 
     if (!coupon) {
         const error = new AppError("Coupon not found", 404);
         return next(error);
     }
 
-    await remove({ model: Coupon, query: { _id: id } });
+    await remove({ model: Coupon, query: { _id: CouponId } });
 
     return successResponse({
         res,

@@ -159,16 +159,17 @@ import {
   updatePublisherOrder
 } from "../controllers/publisherController.js";
 import { roleEnum } from "../utils/roleEnum.js";
+import { paramValidate, queryValidate, validate } from "../middlewares/validation.js";
+import { paginationSchema, publisherIdSchema, publisherOrderIdSchema, publisherOrderUpdateSchema } from "../validations/publisher.js";
 
 const router = express.Router();
 
-router.post("/", authenticate, authorize(roleEnum.admin), createPublisher);
+router.post("/", authenticate, authorize(roleEnum.admin), validate(publisherIdSchema), createPublisher);
 
-router.get("/:publisherId/books", getPublishedBooks);
+router.get("/:publisherId/books", paramValidate(publisherIdSchema), queryValidate(paginationSchema), getPublishedBooks);
 
-router.get("/:publisherId/orders", authenticate, authorize(roleEnum.admin, roleEnum.publisher), getPublisherOrders);
+router.get("/:publisherId/orders", authenticate, authorize(roleEnum.admin, roleEnum.publisher), paramValidate(publisherIdSchema), queryValidate(paginationSchema), getPublisherOrders);
 
-router.patch("/:publisherOrderId", authenticate, authorize(roleEnum.publisher, roleEnum.admin), updatePublisherOrder);
-  
+router.patch("/:publisherOrderId", authenticate, authorize(roleEnum.publisher, roleEnum.admin), paramValidate(publisherOrderIdSchema), validate(publisherOrderUpdateSchema), updatePublisherOrder);
 
 export default router;

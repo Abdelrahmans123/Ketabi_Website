@@ -12,6 +12,7 @@ export const paymentStatus = {
     COMPLETED: "Completed",
     FAILED: "Failed",
     REFUNDED: "Refunded",
+    EXPIRED: "Expired"
 };
 
 export const paymentMethods = { 
@@ -33,4 +34,11 @@ export const deliveryStatus = {
     IN_TRANSIT: "InTransit",
     DELIVERED: "Delivered",
     RETURNED: "Returned",
+}
+
+export const refundStatus = {
+    PENDING: "Pending",
+    APPROVED: "Approved",
+    REJECTED: "Rejected",
+    REFUNDED: "Refunded"
 }

@@ -92,20 +92,15 @@
 
 import express from "express";
 import Sale from "../models/Sale.js";
+import { authenticate } from "../middlewares/auth.js";
+import { authorize } from "../middlewares/authorization.js";
+import { roleEnum } from "../utils/roleEnum.js";
+import { getSalesAdmin } from "../controllers/salesController.js";
+import { queryValidate } from "../middlewares/validation.js";
+import { getSalesSchema } from "../validations/sales.js";
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
-    try {
-        const sales = await Sale.find()
-            .populate("publisher", "name email")
-            .populate("publisherOrder", "totalPrice")
-            .populate("items.book", "title")
-            .sort({ createdAt: -1 });
-        res.json(sales);
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-});
+router.get("/", authenticate, authorize(roleEnum.admin), queryValidate(getSalesSchema) ,getSalesAdmin);
 
 export default router;

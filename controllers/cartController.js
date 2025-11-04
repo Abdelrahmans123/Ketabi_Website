@@ -12,7 +12,7 @@ export const getCart = asyncHandler(async (req, res, next) => {
         query: { user: req.user._id },
         populate: {
             path: "items.book",
-            select: "title author price",
+            select: "title author price discount stock",
         },
     });
     if (!cart) {
@@ -101,8 +101,7 @@ export const addTocart = asyncHandler(async (req, res, next) => {
 });
 
 export const updateCart = asyncHandler(async (req, res, next) => {
-    const book = req.params.bookId.trim();
-    const { quantity, type } = req.body;
+    const { book, quantity, type } = req.body;
 
     if (!quantity && !type) {
         const error = new AppError("missing properites to update", 404);
@@ -114,43 +113,38 @@ export const updateCart = asyncHandler(async (req, res, next) => {
         const error = new AppError("Cart not found", 404);
         return next(error);
     }
-    const itemIndex = cart.items.findIndex(
-        (item) => item.book.toString() === book
-    );
+
+    const itemIndex = cart.items.findIndex((item) => item.book.toString() === book);
+
     if (itemIndex === -1) {
         const error = new AppError("Book not found in cart", 404);
         return next(error);
     }
+
     const bookDoc = await findById({ model: Book, id: book });
+    
     if (!bookDoc) {
         const error = new AppError("Book not found", 404);
         return next(error);
     }
-    if (
-        cart.items[itemIndex].type === itemType.PHYSICAL &&
-        quantity > bookDoc.stock
-    ) {
-        const error = new AppError(
-            `Not enough Stock for ${bookDoc.name} with id: ${bookDoc._id}`,
-            400
-        );
-        return next(error);
+
+    if (type) {
+        cart.items[itemIndex].type = type;
     }
 
-    if (type === itemType.EBOOK) {
+    if (cart.items[itemIndex].type === itemType.EBOOK) {
         cart.items[itemIndex].quantity = 1;
-        cart.items[itemIndex].type = itemType.EBOOK;
-    } else if (type === itemType.PHYSICAL) {
-        cart.items[itemIndex].type = itemType.PHYSICAL;
     } else {
-        if (cart.items[itemIndex].type === itemType.EBOOK) {
-            cart.items[itemIndex].quantity = 1;
+        if (quantity > bookDoc.stock) {
+            const error = new AppError(`Not enough Stock for ${bookDoc.name} with id: ${bookDoc._id}`, 400);
+            return next(error);
         } else {
             cart.items[itemIndex].quantity = quantity;
         }
     }
 
     await cart.save();
+
     return successResponse({
         res,
         statusCode: 200,
@@ -160,7 +154,7 @@ export const updateCart = asyncHandler(async (req, res, next) => {
 });
 
 export const removeFromCart = asyncHandler(async (req, res, next) => {
-    const book = req.params.bookId.toString();
+    const { book } = req.body;
     let cart = await findOne({ model: Cart, query: { user: req.user._id } });
     if (!cart) {
         const error = new AppError("Cart not found", 404);

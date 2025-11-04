@@ -15,26 +15,31 @@ const cartSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 cartSchema.pre('save', async function (next) {
-    // Calculate total price
+    // Calculate total price & stock
     const bookIds = this.items.map(item => item.book);
     const books = await Book.find({ _id: { $in: bookIds } });
 
     const bookMap = new Map(books.map(book => [book._id.toString(), book]));
     this.totalPrice = 0;
+
     for (const item of this.items) {
         const book = bookMap.get(item.book.toString());
+        
         if (!book) {
             return next(new Error(`Book with ID ${item.book} not found`));
         }
+
         if(item.type === itemType.PHYSICAL && book.stock < item.quantity) {
-            return next(new Error(`Insufficient stock for book ${item.name} with id ${item._id}`));
+            item.quantity = book.stock || 0;
         }
+        
         if(item.type === itemType.EBOOK){
             item.price = book.price * 0.45;
             item.quantity = 1;
         } else {
             item.price = book.price;
         }
+    
         this.totalPrice += item.price * item.quantity * (1 - book.discount / 100);
     }
     next();

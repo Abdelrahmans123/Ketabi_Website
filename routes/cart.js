@@ -123,20 +123,15 @@ import {
 } from "../controllers/cartController.js";
 import {
     addToCartSchema,
-    removeCartItemSchema,
     updateCartSchema,
+    removeFromCartSchema
 } from "../validations/cart.js";
 
 const router = express.Router();
 
 router.get("/", authenticate, getCart);
 router.post("/", authenticate, validate(addToCartSchema), addTocart);
-router.put("/:bookId", authenticate, validate(updateCartSchema), updateCart);
-router.delete(
-    "/:bookId",
-    authenticate,
-    validate(removeCartItemSchema),
-    removeFromCart
-);
+router.put("/", authenticate, validate(updateCartSchema), updateCart);
+router.delete("/", authenticate, validate(removeFromCartSchema), removeFromCart);
 
 export default router;

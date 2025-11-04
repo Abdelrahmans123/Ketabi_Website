@@ -25,6 +25,7 @@ import {
     couponExpirationJob,
     deleteUnconfirmedUsersJob,
     inactiveUserReminderJob,
+    orderCleanupJob
 } from "./jobs/cronJobs.js";
 import { apiLimiter } from "./middlewares/rateLimiter.js";
 import { defineCors } from "./middlewares/cors.js";
@@ -77,6 +78,7 @@ const bootstrap = async () => {
         deleteUnconfirmedUsersJob();
         inactiveUserReminderJob();
         cleanupOldCartsJob();
+        orderCleanupJob();
     });
     initializeIO(server);
 };

@@ -32,6 +32,10 @@ export const editCouponSchema = Joi.object({
     isActive: Joi.bool().optional(),
 });
 
+export const editCouponIdSchema = Joi.object({
+    CouponId: Joi.string().regex(/^[0-9a-fA-F]{24}$/).optional().messages({ 'string.pattern.base': 'Invalid Coupon ID', })
+})
+
 export const deleteCouponSchema = Joi.object({
-    CouponId: Joi.string().required()
+    CouponId: Joi.string().regex(/^[0-9a-fA-F]{24}$/).optional().messages({ 'string.pattern.base': 'Invalid Coupon ID', })
 })

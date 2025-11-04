@@ -4,18 +4,18 @@ import AppError from "../utils/AppError.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import Stripe from "stripe";
+import { refundStatus } from "../utils/orderEnums.js";
+import User from "../models/User.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 //List all refund requests
  
 export const getRefunds = asyncHandler(async (req, res) => {
-    const { status = "PENDING", page = 1, limit = 10 } = req.query;
+    const { status = refundStatus.PENDING, page = 1, limit = 10 } = req.query;
     const query = status === "ALL" ? {} : { status };
 
     const refunds = await RefundRequest.find(query)
-        .populate("order", "orderNumber finalPrice userEmail")
-        .populate("user", "name email")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(parseInt(limit));
@@ -36,19 +36,20 @@ export const updateRefundStatus = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
     const { action, notes } = req.body;
 
-    const refund = await RefundRequest.findById(id).populate("user order");
+    const refund = await RefundRequest.findById(id);
+
     if (!refund) return next(new AppError("Refund request not found", 404));
 
-    if (refund.status !== "PENDING")
+    if (refund.status !== refundStatus.PENDING)
         return next(new AppError("Refund request already processed", 400));
 
-    if (action === "APPROVE") {
-        refund.status = "APPROVED";
-    } else if (action === "REJECT") {
-        refund.status = "REJECTED";
-    } else {
-        return next(new AppError("Invalid action. Must be APPROVE or REJECT", 400));
-    }
+    if (action === refundStatus.REFUNDED)
+        return next(new AppError("Can't refund from this route", 400));
+
+    refund.status = action;
+
+    const user = await User.findById(refund.user);
+    const order = await Order.findById(refund.order);
 
     refund.notes = notes || "";
     refund.reviewedAt = new Date();
@@ -56,9 +57,9 @@ export const updateRefundStatus = asyncHandler(async (req, res, next) => {
     await refund.save();
 
     await sendEmail({
-        to: refund.user.email,
+        to: user.email,
         subject: `Refund Request ${refund.status}`,
-        text: `Your refund request for Order #${refund.order.orderNumber} has been ${refund.status.toLowerCase()} by our support team.`,
+        text: `Your refund request for Order #${order.orderNumber} has been ${refund.status.toLowerCase()} by our support team.`,
     });
 
     res.status(200).json({ message: `Refund ${refund.status}`, refund });
@@ -67,10 +68,13 @@ export const updateRefundStatus = asyncHandler(async (req, res, next) => {
 // Stripe refund for approved requests
 export const processRefund = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
-    const refundReq = await RefundRequest.findById(id).populate("order user");
+    
+    const refundReq = await RefundRequest.findById(id);
+    const user = await User.findById(refundReq.user);
+    const order = await Order.findById(refundReq.order);
 
     if (!refundReq) return next(new AppError("Refund request not found", 404));
-    if (refundReq.status !== "APPROVED")
+    if (refundReq.status !== refundStatus.APPROVED)
         return next(new AppError("Refund must be approved before processing", 400));
 
     try {
@@ -79,17 +83,17 @@ export const processRefund = asyncHandler(async (req, res, next) => {
             amount: Math.round(refundReq.amount * 100),
         });
 
-        refundReq.status = "REFUNDED";
+        refundReq.status = refundStatus.REFUNDED;
         refundReq.reviewedAt = new Date();
         await refundReq.save();
 
         await sendEmail({
-            to: refundReq.user.email,
+            to: user.email,
             subject: "Refund Completed",
             text: `
-Hi ${refundReq.user.name},
+Hi ${user.name},
 
-Your refund for Order #${refundReq.order.orderNumber} has been successfully processed.
+Your refund for Order #${order.orderNumber} has been successfully processed.
 
 Amount: ${refundReq.amount} EGP
 Refund ID: ${refund.id}
