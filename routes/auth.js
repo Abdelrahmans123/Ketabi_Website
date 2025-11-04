@@ -257,6 +257,7 @@ import {
     registerWithGoogle,
     resendConfirmationOtp,
     resetPassword,
+    verifyPhoneOtp,
 } from "../controllers/AuthController.js";
 import { validate } from "../middlewares/validation.js";
 import {
@@ -287,4 +288,5 @@ router.post("/register/facebook", registerWithFacebook);
 router.post("/login/facebook", facebookLogin);
 router.post("/resend-confirmation-otp", resendConfirmationOtp);
 router.post("/refresh", refreshAccessToken);
+router.post("/verify-phone", verifyPhoneOtp);
 export default router;

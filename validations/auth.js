@@ -16,7 +16,6 @@ export const registerSchema = Joi.object({
         "string.empty": "Password is Required",
         "string.min": "Password must be at least 8 characters",
     }),
-
     confirmPassword: Joi.string()
         .min(8)
         .required()
@@ -46,6 +45,7 @@ export const registerSchema = Joi.object({
     status: Joi.string().valid("active", "inactive").optional().messages({
         "any.only": "Status must be either 'active' or 'inactive'",
     }),
+    telegramChatId: Joi.string().optional(),
 });
 export const loginSchema = Joi.object({
     email: Joi.string().email().required().messages({

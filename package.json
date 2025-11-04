@@ -23,6 +23,7 @@
         "@aws-sdk/lib-storage": "^3.908.0",
         "@aws-sdk/s3-request-presigner": "^3.916.0",
         "@google/generative-ai": "^0.24.1",
+        "axios": "^1.13.1",
         "bcryptjs": "^3.0.2",
         "connect-redis": "^9.0.0",
         "cors": "^2.8.5",
@@ -41,6 +42,7 @@
         "nanoid": "^5.1.6",
         "node-cron": "^4.2.1",
         "node-fetch": "^3.3.2",
+        "node-telegram-bot-api": "^0.66.0",
         "nodemailer": "^7.0.6",
         "redis": "^5.8.3",
         "rotating-file-stream": "^3.2.7",
@@ -49,6 +51,7 @@
         "stripe": "^19.1.0",
         "swagger-jsdoc": "^6.2.8",
         "swagger-ui-express": "^5.0.1",
+        "twilio": "^5.10.4",
         "winston": "^3.18.3",
         "winston-daily-rotate-file": "^5.0.0"
     },

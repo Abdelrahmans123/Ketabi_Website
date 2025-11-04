@@ -18,19 +18,20 @@ import publisherRoutes from "./routes/publisher.js";
 import reviewRoutes from "./routes/review.js";
 import stripeRouter from "./controllers/webhookController.js";
 import adminRefundRoutes from "./routes/adminRefund.js";
-import ragChatbot from './chatbot/gemini-rag.js';
+import ragChatbot from "./chatbot/gemini-rag.js";
 import helmet from "helmet";
 import {
     cleanupOldCartsJob,
     couponExpirationJob,
     deleteUnconfirmedUsersJob,
     inactiveUserReminderJob,
-    orderCleanupJob
+    orderCleanupJob,
 } from "./jobs/cronJobs.js";
 import { apiLimiter } from "./middlewares/rateLimiter.js";
 import { defineCors } from "./middlewares/cors.js";
 import { notFoundHandler } from "./middlewares/notFound.js";
 import salesRouter from "./routes/adminSales.js";
+import "./utils/telegramBot.js";
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;
@@ -59,14 +60,14 @@ const bootstrap = async () => {
     app.use("/api/admin/refunds", adminRefundRoutes);
     app.use("/api/admin/sales", salesRouter);
     swaggerDocs(app);
-    app.post('/api/chat', async (req, res) => {
+    app.post("/api/chat", async (req, res) => {
         const { message } = req.body;
 
         const result = await ragChatbot.chat(message);
 
         res.json({
             response: result.response,
-            books: result.books
+            books: result.books,
         });
     });
     // *---Error Handlers---*
@@ -74,6 +75,7 @@ const bootstrap = async () => {
     app.use(errorHandler);
     const server = app.listen(PORT, () => {
         console.log(`Server is running on port ${PORT}`);
+        console.log("Telegram bot initialized");
         couponExpirationJob();
         deleteUnconfirmedUsersJob();
         inactiveUserReminderJob();
