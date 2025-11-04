@@ -19,10 +19,20 @@ const BookSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
-        categoryName: {
+        recommendedAge: {
             type: String,
+            enum: ["kids", "adults", "all"],
+            default: "all",
+        },
+        bookLanguage: {
+            type: String,
+            enum: ["english", "arabic"],
+            default: "english",
+        },
+        genre: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Genre",
             required: true,
-            trim: true,
         },
         price: {
             type: Number,
@@ -60,17 +70,17 @@ const BookSchema = new mongoose.Schema(
         },
         avgRating: {
             type: Number,
-            default: 0
+            default: 0,
         },
         ratingsCount: {
             type: Number,
-            default: 0
+            default: 0,
         },
         publisher: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
             required: true,
-        }
+        },
     },
     { timestamps: true }
 );
