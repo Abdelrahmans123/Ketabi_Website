@@ -21,41 +21,46 @@ import {
 } from "../services/BookAvailabilityNotification.js";
 import Genre from "../models/Genre.js";
 import { roleEnum } from "../utils/roleEnum.js";
+import mongoose from "mongoose"; // added for ObjectId validation
 
 export const AddBook = asyncHandler(async (req, res, next) => {
-
-    // get publisher id from the request user document
     const publisherId = req.user.id;
     req.body.publisher = publisherId;
 
-    // Check category/genre if it exists
-    const genre = await findOne({ model: Genre, query: { name: req.body.categoryName } })
-
-    if (!genre) {
-        const error = new AppError("No Such genre exists", 404);
-        return next(error);
+    if (!req.body.genre_id) {
+        return next(new AppError("genre_id is required", 400));
+    }
+    if (!mongoose.Types.ObjectId.isValid(String(req.body.genre_id))) {
+        return next(new AppError("Invalid genre_id", 400));
     }
 
-    // check if publisher has a published book with the same name
-    const publishedBooksIds = req.user.booksPublished;
+    const genre = await findById({ model: Genre, id: req.body.genre_id });
+    if (!genre) {
+        return next(new AppError("No Such genre exists", 404));
+    }
 
+    req.body.genre = genre._id;
+    delete req.body.genre_id;
 
-    
-    for (const bookId of publishedBooksIds) {
-        const book = await findById({ model: Book, id: bookId });
-        if (book.name === req.body.name && book.Edition === req.body.Edition) {
-            const error = new AppError("Can't post the same book twice!", 404);
-            return next(error);
-        }
+    const duplicateBook = await Book.findOne({
+        publisher: publisherId,
+        name: req.body.name,
+        Edition: req.body.Edition,
+    });
+
+    if (duplicateBook) {
+        return next(new AppError("Can't post the same book twice!", 409));
     }
 
     if (!req.file) {
         const book = await create({ model: Book, data: req.body });
+
         await findByIdAndUpdate({
             model: User,
             id: publisherId,
             data: { $addToSet: { booksPublished: book._id } },
         });
+
         return successResponse({
             res,
             statusCode: 201,
@@ -85,14 +90,14 @@ export const AddBook = asyncHandler(async (req, res, next) => {
     };
 
     const book = await create({ model: Book, data: bookData });
-
     if (book.publisher) {
         await findByIdAndUpdate({
             model: User,
             id: book.publisher,
-            data: { $push: { booksPublished: book._id } },
+            data: { $addToSet: { booksPublished: book._id } },
         });
     }
+
     if (book.author) {
         await notifyNewEdition(book._id, book.author);
     }
@@ -114,7 +119,13 @@ export const getBooks = asyncHandler(async (req, res, next) => {
     const filter = {};
     if (query.title) filter.name = { $regex: query.title, $options: "i" };
     if (query.author) filter.author = { $regex: query.author, $options: "i" };
-    if (query.genre) filter.categoryName = new RegExp(`^${query.genre}$`, "i");
+    if (query.genre_id) {
+        if (mongoose.Types.ObjectId.isValid(String(query.genre_id))) {
+            filter.genre = query.genre_id;
+        } else {
+            filter.genre = null;
+        }
+    }
 
     let sort = {};
     if (query.sortBy && query.order) {
@@ -123,13 +134,13 @@ export const getBooks = asyncHandler(async (req, res, next) => {
         sort = { createdAt: -1 };
     }
 
-    // const books = await Book.find(filter).skip(skip).limit(limit).sort(sort);
     const books = await findAll({
         model: Book,
         filter: filter,
         skip,
         limit,
         sort,
+        populate: "genre",
     });
     const totalBooks = await Book.countDocuments(filter);
 
@@ -158,7 +169,7 @@ export const getBooks = asyncHandler(async (req, res, next) => {
 
 export const getBookByID = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
-    const book = await findById({ model: Book, id });
+    const book = await findById({ model: Book, id, populate: "genre" });
     if (!book) {
         const error = new AppError("Book Not Found", 404);
         return next(error);
@@ -188,9 +199,9 @@ export const updateBook = asyncHandler(async (req, res, next) => {
         }
     }
 
-    const isTheSameBook = Object.keys(req.body).every(key => {
-        return req.body[key] === oldBook[key]
-    })
+    const isTheSameBook = Object.keys(req.body).every((key) => {
+        return req.body[key] === oldBook[key];
+    });
 
     if (isTheSameBook) {
         return successResponse({
@@ -200,7 +211,6 @@ export const updateBook = asyncHandler(async (req, res, next) => {
             data: oldBook,
         });
     }
-
 
     const updatedBook = await findByIdAndUpdate({
         model: Book,
@@ -255,8 +265,9 @@ export const deleteBook = asyncHandler(async (req, res, next) => {
     // update published books array in the publisher document
     if (req.user.role === roleEnum.publisher) {
         await findByIdAndUpdate({
-            model: User, id: req.user.id,
-            data: { $pull: { booksPublished: id } }
+            model: User,
+            id: req.user.id,
+            data: { $pull: { booksPublished: id } },
         });
     }
 
@@ -301,4 +312,50 @@ export const downloadBook = asyncHandler(async (req, res, next) => {
     const signedUrl = await generateSignedDownloadUrl(book.pdf.key, 60);
 
     return res.redirect(signedUrl);
+});
+
+export const getBooksByCategory = asyncHandler(async (req, res, next) => {
+    const { category } = req.params;
+    if (!category) {
+        return next(new AppError("Category parameter is required", 400));
+    }
+
+    const cat = String(category).trim().toLowerCase();
+
+    let filter = {};
+    if (cat === "arabic") {
+        filter.bookLanguage = "arabic";
+    } else if (cat === "english") {
+        filter.bookLanguage = "english";
+    } else if (cat === "kids") {
+        filter.recommendedAge = "kids";
+    } else if (cat === "new") {
+        filter = {};
+    } else {
+        return next(
+            new AppError(
+                "Invalid category. Must be Arabic, English, Kids or New",
+                400
+            )
+        );
+    }
+
+    const books = await Book.find(filter)
+        .sort({ createdAt: -1 })
+        .limit(8)
+        .select("name author image.url")
+        .lean();
+
+    if (!books || books.length === 0) {
+        return next(
+            new AppError(`No books found in category: ${category}`, 404)
+        );
+    }
+
+    return successResponse({
+        res,
+        statusCode: 200,
+        message: `Books in category ${category} retrieved successfully`,
+        data: books,
+    });
 });

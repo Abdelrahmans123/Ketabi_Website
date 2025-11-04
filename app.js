@@ -31,7 +31,7 @@ import { apiLimiter } from "./middlewares/rateLimiter.js";
 import { defineCors } from "./middlewares/cors.js";
 import { notFoundHandler } from "./middlewares/notFound.js";
 import salesRouter from "./routes/adminSales.js";
-import "./utils/telegramBot.js";
+// import "./utils/telegramBot.js";
 const bootstrap = async () => {
     const app = express();
     const PORT = process.env.PORT || 3000;

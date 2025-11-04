@@ -120,12 +120,22 @@ import {
     updateBook,
     deleteBook,
     downloadBook,
+    getBooksByCategory,
 } from "../controllers/BooksController.js";
 import { authenticate } from "../middlewares/auth.js";
 import { authorize } from "../middlewares/authorization.js";
 import upload from "../middlewares/upload.js";
-import { queryValidate, validate, paramValidate } from "../middlewares/validation.js";
-import { createSchema, updateSchema, getBookByIdSchema, updateByBookIdSchema as idParameterValidate } from "../validations/book.js";
+import {
+    queryValidate,
+    validate,
+    paramValidate,
+} from "../middlewares/validation.js";
+import {
+    createSchema,
+    updateSchema,
+    getBookByIdSchema,
+    updateByBookIdSchema as idParameterValidate,
+} from "../validations/book.js";
 import { roleEnum } from "../utils/roleEnum.js";
 import { cacheMiddleware } from "../middlewares/cach.js";
 
@@ -134,7 +144,7 @@ const router = express.Router();
 router.post(
     "/Create-Book",
     authenticate,
-    authorize(roleEnum.publisher),
+    // authorize(roleEnum.publisher),
     validate(createSchema),
     upload.single("pdf"),
     AddBook
@@ -142,8 +152,20 @@ router.post(
 //router.get("/List-Books", cacheMiddleware("List-Books"), getBooks);
 router.get("/List-Books", cacheMiddleware("List-Books"), getBooks);
 
-router.get("/Get-Book/:id", paramValidate(getBookByIdSchema), cacheMiddleware("Get-Book"), getBookByID);
-router.put("/Update-Book/:id",authenticate, authorize(roleEnum.admin, roleEnum.publisher), paramValidate(idParameterValidate), validate(updateSchema), updateBook);
+router.get(
+    "/Get-Book/:id",
+    paramValidate(getBookByIdSchema),
+    cacheMiddleware("Get-Book"),
+    getBookByID
+);
+router.put(
+    "/Update-Book/:id",
+    authenticate,
+    authorize(roleEnum.admin, roleEnum.publisher),
+    paramValidate(idParameterValidate),
+    validate(updateSchema),
+    updateBook
+);
 
 router.delete(
     "/Delete/:id",
@@ -152,6 +174,11 @@ router.delete(
     paramValidate(idParameterValidate),
     deleteBook
 );
-router.get("/Download-Book/:id", authenticate, paramValidate(idParameterValidate), downloadBook);
-
+router.get(
+    "/Download-Book/:id",
+    authenticate,
+    paramValidate(idParameterValidate),
+    downloadBook
+);
+router.get("/:category", cacheMiddleware("category"), getBooksByCategory);
 export default router;
