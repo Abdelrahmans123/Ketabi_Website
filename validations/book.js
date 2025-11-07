@@ -54,10 +54,22 @@ export const createSchema = Joi.object({
         .messages({
             "any.only": "Status must be either 'in stock' or 'out of stock'",
         }),
-    publisher: Joi.string().required().messages({
-        "string.empty": "Publisher ID is required",
-        "any.required": "Publisher ID is required",
-    }),
+    bookLanguage: Joi.string()
+        .optional()
+        .valid("arabic", "english")
+        .default("english")
+        .messages({
+            'any.only': 'Book language must be one of the allowed values: arabic, english.',
+            'string.base': 'Book language must be a string.'
+        }),
+    recommendedAge: Joi.string()
+        .optional()
+        .valid("kids", "adults", "all")
+        .default("all")
+        .messages({
+            'any.only': 'Recommended age must be one of the allowed values: kids, adults, or all.',
+            'string.base': 'Recommended age must be a string.'
+        })
 });
 
 export const getBookByIdSchema = Joi.object({
