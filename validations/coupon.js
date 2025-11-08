@@ -39,3 +39,27 @@ export const editCouponIdSchema = Joi.object({
 export const deleteCouponSchema = Joi.object({
     CouponId: Joi.string().regex(/^[0-9a-fA-F]{24}$/).optional().messages({ 'string.pattern.base': 'Invalid Coupon ID', })
 })
+
+export const getCouponSchema = Joi.object({
+    CouponCode: Joi.string()
+        .trim()
+        .min(3)
+        .max(20)
+        .required()
+        .messages({
+            'string.empty': 'Coupon code is required',
+            'string.min': 'Coupon code must be at least 3 characters',
+            'string.max': 'Coupon code must be at most 20 characters',
+        }),
+})
+
+export const checkCouponSchema = Joi.object({
+    subtotal: Joi.number()
+    .positive()
+    .required()
+    .messages({
+      'number.base': 'Subtotal must be a number',
+      'number.positive': 'Subtotal must be greater than zero',
+      'any.required': 'Subtotal is required',
+    }),
+})

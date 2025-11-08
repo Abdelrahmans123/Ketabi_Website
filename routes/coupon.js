@@ -156,14 +156,15 @@
 import express from "express";
 import { authenticate } from "../middlewares/auth.js";
 import { paramValidate, queryValidate, validate } from "../middlewares/validation.js";
-import { getAllCoupons, addCoupon, editCoupon, deleteCoupon } from "../controllers/couponController.js";
+import { getAllCoupons, addCoupon, editCoupon, deleteCoupon, getCoupon } from "../controllers/couponController.js";
 import { authorize } from "../middlewares/authorization.js";
 import { roleEnum } from "../utils/roleEnum.js";
-import { createCouponSchema, getCouponsSchema, editCouponSchema, deleteCouponSchema, editCouponIdSchema } from "../validations/coupon.js";
+import { createCouponSchema, getCouponsSchema, editCouponSchema, deleteCouponSchema, editCouponIdSchema, checkCouponSchema, getCouponSchema } from "../validations/coupon.js";
 
 const router = express.Router();
 
 router.get('/', authenticate, authorize(roleEnum.admin), queryValidate (getCouponsSchema), getAllCoupons);
+router.get('/:CouponCode', authenticate, paramValidate(getCouponSchema), queryValidate(checkCouponSchema), getCoupon)
 router.post('/', authenticate, authorize(roleEnum.admin), validate (createCouponSchema), addCoupon);
 router.put('/:CouponId', authenticate, authorize(roleEnum.admin), validate (editCouponSchema), paramValidate(editCouponIdSchema), editCoupon);
 router.delete('/:CouponId', authenticate, authorize(roleEnum.admin), paramValidate (deleteCouponSchema), deleteCoupon)

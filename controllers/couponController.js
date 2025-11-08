@@ -82,8 +82,9 @@ export const addCoupon = asyncHandler(async (req, res, next) => {
         usageLimit,
         isActive,
     } = req.body;
+
     const CouponData = {
-        code,
+        code: code.toUpperCase(),
         description,
         discountPercentage,
         minOrderValue,
@@ -138,9 +139,9 @@ export const editCoupon = asyncHandler(async (req, res, next) => {
 
     const noChanges = Object.entries(CouponData).every(([key, value]) => {
         const originalValue = coupon[key];
-        console.log("Value: ",value);
-        console.log("originalValue: ",originalValue);
-        
+        console.log("Value: ", value);
+        console.log("originalValue: ", originalValue);
+
         if (originalValue instanceof Date) {
             return new Date(originalValue).getTime() === new Date(value).getTime();
         }
@@ -150,7 +151,7 @@ export const editCoupon = asyncHandler(async (req, res, next) => {
     if (noChanges) {
         return next(new AppError("No changes detected — coupon is already up to date", 400));
     }
-    
+
     const updatedCoupon = await findOneAndUpdate({
         model: Coupon,
         query: { _id: CouponId },
@@ -170,7 +171,7 @@ export const editCoupon = asyncHandler(async (req, res, next) => {
 });
 
 export const deleteCoupon = asyncHandler(async (req, res, next) => {
-    const {CouponId} = req.params;
+    const { CouponId } = req.params;
 
     const coupon = await findById({ model: Coupon, id: CouponId });
 
@@ -187,3 +188,48 @@ export const deleteCoupon = asyncHandler(async (req, res, next) => {
         message: "Coupon deleted successfully",
     });
 });
+
+export const getCoupon = asyncHandler(async (req, res, next) => {
+    const { CouponCode } = req.params;
+    const { subtotal } = req.query;
+    const numericSubtotal = parseFloat(subtotal);
+
+    const coupon = await Coupon.findOne({code: CouponCode})
+    
+    if (!coupon) {
+        return res.status(404).json({ success: false, message: 'Invalid coupon code' });
+    }
+
+    if (!coupon.isActive) {
+        return res.status(400).json({ success: false, message: 'Coupon is inactive' });
+    }
+
+    if (coupon.expiryDate && coupon.expiryDate < new Date()) {
+        return res.status(400).json({ success: false, message: 'Coupon has expired' });
+    }
+
+    if (numericSubtotal < coupon.minOrderValue) {
+        return res.status(400).json({
+            success: false,
+            message: `Minimum order value is $${coupon.minOrderValue}`,
+        });
+    }
+
+    if (coupon.numOfUsers >= coupon.usageLimit) {
+        return res.status(400).json({
+            success: false,
+            message: `Coupon has expired`,
+        });
+    }
+
+    const discountAmount = coupon.discountPercentage;
+    return res.status(200).json({
+        success: true,
+        message: 'Coupon applied successfully',
+        coupon: {
+            code: coupon.code,
+            discountAmount,
+        },
+    });
+
+})
