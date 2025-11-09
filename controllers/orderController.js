@@ -42,7 +42,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     let totalPrice = 0;
     const {
         items,
-        shippingAddress,
+        shippingAddress = {phoneNumber: req.user.phone},
         paymentMethod,
         isGift,
         recipientEmail = req.user.email,
@@ -53,6 +53,10 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     const userId = req.user.id;
     const userEmail = req.user.email;
     const userName = req.user.name;
+
+    if (shippingAddress) {
+        shippingAddress.phoneNumber = shippingAddress.phoneNumber || req.user.phone;
+    }
 
     // Validate coupon
     const couponData = await getCouponData(coupon);
@@ -149,7 +153,6 @@ export const createOrder = asyncHandler(async (req, res, next) => {
             item.type === itemType.PHYSICAL &&
             !(shippingAddress.street &&
                 shippingAddress.city &&
-                shippingAddress.country &&
                 shippingAddress.phoneNumber)
         ) {
             return await abort(`Incomplete shipping info for ${book.name}`, 400);

@@ -229,6 +229,7 @@ export const getCoupon = asyncHandler(async (req, res, next) => {
         coupon: {
             code: coupon.code,
             discountAmount,
+            minOrderValue: coupon.minOrderValue
         },
     });
 
