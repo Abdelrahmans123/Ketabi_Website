@@ -47,9 +47,7 @@ const orderSchema = new mongoose.Schema({
     shippingAddress: {
         street: { type: String },
         city: { type: String },
-        postalCode: { type: String },
-        country: { type: String },
-        phoneNumber: { type: String },
+        phoneNumber: { type: String }
     },
     transactionId: { type: String },
     paymentMethod: { type: String, required: true, enum: Object.values(paymentMethods) },
