@@ -23,6 +23,10 @@ import { OAuth2Client } from "google-auth-library";
 import { providerEnum } from "../utils/providerEnum.js";
 import fetch from "node-fetch";
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const getAccessTokenExpiry = () =>
+    parseInt(process.env.JWT_ACCESS_EXPIRES_IN_SECONDS);
+const getRefreshTokenExpiry = () =>
+    parseInt(process.env.JWT_REFRESH_EXPIRES_IN_SECONDS);
 export const register = asyncHandler(async (req, res, next) => {
     const { name, email, password, phone, address, gender, role } = req.body;
     const existingUser = await findOne({ model: User, query: { email } });
@@ -87,7 +91,10 @@ export const registerWithGoogle = asyncHandler(async (req, res, next) => {
     if (!payload.email_verified) {
         return next(new AppError("Email not verified by Google", 400));
     }
-    const existingUser = await findOne(User, { email: verifiedEmail });
+    const existingUser = await findOne({
+        model: User,
+        query: { email: verifiedEmail },
+    });
 
     if (existingUser) {
         return next(new AppError("User already exists, please login", 409));
@@ -106,6 +113,10 @@ export const registerWithGoogle = asyncHandler(async (req, res, next) => {
             public_id: `google_${nanoid()}`,
             url: photoUrl || payload.picture,
         },
+        role: "user",
+        gender: payload.gender || "male",
+        confirmEmailOtp: 1,
+        confirmEmailOtpExpires: null,
         isTwoFactorAuthenticated: true,
     };
     const user = await create({ model: User, data });
@@ -116,7 +127,7 @@ export const registerWithGoogle = asyncHandler(async (req, res, next) => {
         userId: user._id.toString(),
         twoFactorVerified: "true",
     });
-    await redisClient.expire(`token:${jwtId}`, 60 * 60);
+    await redisClient.expire(`token:${jwtId}`, getAccessTokenExpiry());
     await redisClient.set(`user:${user._id}:activeToken`, jwtId);
 
     return successResponse({
@@ -164,7 +175,7 @@ export const googleLogin = asyncHandler(async (req, res, next) => {
         userId: user._id.toString(),
         twoFactorVerified: "true",
     });
-    await redisClient.expire(`token:${jwtId}`, 60 * 60);
+    await redisClient.expire(`token:${jwtId}`, getAccessTokenExpiry());
     await redisClient.set(`user:${user._id}:activeToken`, jwtId);
 
     return successResponse({
@@ -205,7 +216,7 @@ export const facebookLogin = asyncHandler(async (req, res, next) => {
         userId: user._id.toString(),
         twoFactorVerified: "true",
     });
-    await redisClient.expire(`token:${jwtId}`, 60 * 60);
+    await redisClient.expire(`token:${jwtId}`, getAccessTokenExpiry());
     await redisClient.set(`user:${user._id}:activeToken`, jwtId);
 
     return successResponse({
@@ -272,7 +283,7 @@ export const registerWithFacebook = asyncHandler(async (req, res, next) => {
         userId: user._id.toString(),
         twoFactorVerified: "true",
     });
-    await redisClient.expire(`token:${jwtId}`, 60 * 60);
+    await redisClient.expire(`token:${jwtId}`, getAccessTokenExpiry());
     await redisClient.set(`user:${user._id}:activeToken`, jwtId);
 
     return successResponse({
@@ -439,7 +450,7 @@ export const login = asyncHandler(async (req, res, next) => {
             userId: user._id.toString(),
             twoFactorVerified: "true",
         });
-        await redisClient.expire(`token:${jwtId}`, 60 * 60);
+        await redisClient.expire(`token:${jwtId}`, getAccessTokenExpiry());
         await redisClient.set(`user:${user._id}:activeToken`, jwtId);
         await updateOne({
             model: User,
@@ -474,6 +485,8 @@ export const login = asyncHandler(async (req, res, next) => {
             twoFactorOtpAttempts: 0,
         },
     });
+     console.log(`🚀 [Login OTP] for ${email}: ${otp}`);
+
     req.session.userId = user._id;
     req.session.isAuthenticated = false;
     req.session.otpPurpose = "login";
@@ -488,6 +501,8 @@ export const login = asyncHandler(async (req, res, next) => {
         statusCode: 200,
         message: "OTP sent to your email",
     });
+            console.log(`🚀 [Login OTP] for ${email}: ${otp}`);
+
 });
 
 export const confirmLogin = asyncHandler(async (req, res, next) => {
@@ -542,14 +557,14 @@ export const confirmLogin = asyncHandler(async (req, res, next) => {
         userId: user._id.toString(),
         twoFactorVerified: "true",
     });
-
-    const oneHourInSeconds = 60 * 60;
-    await redisClient.expire(`token:${jwtId}`, oneHourInSeconds);
+    await redisClient.expire(
+        `token:${jwtId}`,
+        process.env.JWT_ACCESS_EXPIRES_IN_SECONDS
+    );
+    await redisClient.expire(`token:${jwtId}`, getAccessTokenExpiry());
+    await redisClient.set(`user:${user._id}:activeToken`, jwtId);
     req.session.isAuthenticated = true;
     req.session.otpPurpose = null;
-    await redisClient.hSet(`token:${jwtId}`, { userId: user._id.toString() });
-    await redisClient.expire(`token:${jwtId}`, 60 * 60);
-    await redisClient.set(`user:${user._id}:activeToken`, jwtId);
     return successResponse({
         res,
         statusCode: 200,
@@ -580,7 +595,8 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
         subject: "Reset Your Password",
         text: `Your OTP is ${otp}. Please use it to reset your password.`,
     });
-    console.log("OTP", otp);
+    req.session.userId = user._id;
+    req.session.otpPurpose = "resetPassword";
 
     return successResponse({
         res,
@@ -591,6 +607,8 @@ export const forgotPassword = asyncHandler(async (req, res, next) => {
 export const resetPassword = asyncHandler(async (req, res, next) => {
     const { otp, newPassword } = req.body;
     const userId = req.session.userId;
+    console.log("🚀 ~ userId:", userId);
+
     const user = await findById({ model: User, id: userId });
     if (!user) {
         const error = new AppError("User not found", 404);
@@ -728,11 +746,11 @@ export const refreshAccessToken = asyncHandler(async (req, res, next) => {
         data: {
             refreshToken: newRefreshToken,
             refreshTokenExpiresAt: new Date(
-                Date.now() + 7 * 24 * 60 * 60 * 1000
+                Date.now() + getRefreshTokenExpiry() * 1000
             ),
         },
     });
-    await redisClient.expire(`token:${decoded.jti}`, 60 * 60);
+    await redisClient.expire(`token:${decoded.jti}`, getAccessTokenExpiry());
     return successResponse({
         res,
         statusCode: 200,

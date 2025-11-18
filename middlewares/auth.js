@@ -14,6 +14,12 @@ export const authenticate = asyncHandler(async (req, res, next) => {
     const decoded = verifyAccessToken(token);
     const tokenData = await redisClient.hGetAll(`token:${decoded.jti}`);
     const user = await User.findById(decoded.id);
+    if (!user) {
+        return next(new AppError("User not found", 401));
+    }
+    if (user.status !== "active") {
+        return next(new AppError("User is inactive", 401));
+    }
     const activeJti = await redisClient.get(`user:${decoded.id}:activeToken`);
     if (activeJti !== decoded.jti) {
         return next(new AppError("Logged in from another device", 401));

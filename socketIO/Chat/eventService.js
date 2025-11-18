@@ -17,26 +17,34 @@ export const registerEventService = ({ message, socket, cb }) => {
         socket.emit("error", { message: err.message });
     }
 };
+
 export const sendMessageService = async ({ message, socket, io }) => {
     try {
         const senderId = socket.user.id;
         const recipientId = message.sendTo;
         const sender = socket.user;
+
         console.log(
             `Message from user ID: ${senderId} (role: ${sender.role}) to ${recipientId} with content: ${message.content}`
         );
+
         let chat;
+
         if (sender.role !== roleEnum.admin) {
-            const admin = await findOne(User, {
-                _id: recipientId,
-                role: roleEnum.admin,
+            const admin = await findOne({
+                model: User,
+                filter: { role: roleEnum.admin },
             });
+
             if (!admin) {
                 throw new AppError("Recipient must be an admin", 403);
             }
+
             chat = await findOneAndUpdate(
-                Ticket,
-                { users: { $all: [senderId, recipientId] } },
+                {
+                    model: Ticket,
+                    filter: { users: { $all: [senderId, recipientId] } },
+                },
                 {
                     $push: {
                         messages: {
@@ -49,6 +57,7 @@ export const sendMessageService = async ({ message, socket, io }) => {
                 },
                 { new: true }
             );
+
             if (!chat) {
                 chat = await Ticket.create({
                     users: [senderId, recipientId],
@@ -66,8 +75,10 @@ export const sendMessageService = async ({ message, socket, io }) => {
             }
         } else {
             chat = await findOneAndUpdate(
-                Ticket,
-                { users: { $all: [senderId, recipientId] } },
+                {
+                    model: Ticket,
+                    filter: { users: { $all: [senderId, recipientId] } },
+                },
                 {
                     $push: {
                         messages: {
@@ -80,6 +91,7 @@ export const sendMessageService = async ({ message, socket, io }) => {
                 },
                 { new: true }
             );
+
             if (!chat) {
                 throw new AppError(
                     "Admin can only respond to existing conversations",
@@ -87,17 +99,27 @@ export const sendMessageService = async ({ message, socket, io }) => {
                 );
             }
         }
-        io.to(senderId).emit("successMessage", {
+
+        // FIXED: Emit successMessage only to the sender's socket (not to the room)
+        socket.emit("successMessage", {
             content: message.content,
             sendTo: recipientId,
             from: senderId,
         });
-        io.to(recipientId).emit("newMessage", {
+
+        // FIXED: Emit newMessage to the recipient's room (excluding the sender)
+        // This ensures the message goes to all recipient's tabs but not back to sender
+        socket.to(recipientId).emit("newMessage", {
             content: message.content,
             sendTo: recipientId,
             from: senderId,
         });
+
+        console.log(
+            `✓ Message sent successfully from ${senderId} to ${recipientId}`
+        );
     } catch (err) {
+        console.error("Error sending message:", err);
         socket.emit("error", { message: err.message });
     }
 };

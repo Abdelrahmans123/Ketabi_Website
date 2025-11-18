@@ -120,11 +120,13 @@ import {
     getCart,
     removeFromCart,
     updateCart,
+    setCart
 } from "../controllers/cartController.js";
 import {
     addToCartSchema,
     updateCartSchema,
-    removeFromCartSchema
+    removeFromCartSchema,
+    setCartSchema
 } from "../validations/cart.js";
 
 const router = express.Router();
@@ -132,6 +134,7 @@ const router = express.Router();
 router.get("/", authenticate, getCart);
 router.post("/", authenticate, validate(addToCartSchema), addTocart);
 router.put("/", authenticate, validate(updateCartSchema), updateCart);
+router.put("/SetCart", authenticate, validate(setCartSchema), setCart)
 router.delete("/", authenticate, validate(removeFromCartSchema), removeFromCart);
 
 export default router;

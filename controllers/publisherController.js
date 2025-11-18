@@ -9,6 +9,7 @@ import { Order } from "../models/Order.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { findAll, findById } from "../models/services/db.js";
 import mongoose from "mongoose";
+import { notifyOrderCancelled, notifyGiftReceived, notifyOrderConfirmed, notifyOrderDelivered, notifyOrderProcessing, notifyOrderShipped, notifyPaymentFailed, notifyPaymentRefunded, notifyPaymentSuccess } from "../services/OrderNotification.js";
 
 export const createPublisher = asyncHandler(async (req, res, next) => {
     const { publisherId } = req.body;
@@ -17,7 +18,9 @@ export const createPublisher = asyncHandler(async (req, res, next) => {
 
     if (!userDoc) return next(new AppError("Id not found", 400));
     userDoc.role = roleEnum.publisher;
-    await userDoc.save();
+    // await userDoc.save();
+    await userDoc.save({ validateBeforeSave: false });
+
     return successResponse({
         res,
         statusCode: 201,
@@ -30,6 +33,11 @@ export const getPublishedBooks = asyncHandler(async (req, res, next) => {
     const { publisherId } = req.params;
     let { page, limit } = req.query;
 
+    page = Number(page) || 1;
+    limit = Number(limit) || 10;
+    page = Math.max(page, 1);
+    limit = Math.max(limit, 1);
+
     const publisher = await findById({
         model: User,
         id: publisherId,
@@ -37,21 +45,29 @@ export const getPublishedBooks = asyncHandler(async (req, res, next) => {
 
     if (!publisher) throw new AppError("Publisher not found", 404);
 
-    if (page > publisher.booksPublished.length / limit) {
-        page = Math.ceil(publisher.booksPublished.length / limit) || 0;
+    // First, get the actual count of existing books
+    const existingBooksCount = await Book.countDocuments({
+        _id: { $in: publisher.booksPublished }
+    });
+
+    const totalBooks = existingBooksCount;
+    const totalPages = totalBooks === 0 ? 0 : Math.ceil(totalBooks / limit);
+
+    if (totalPages > 0) {
+        page = Math.min(page, totalPages);
+    } else {
+        page = 1;
     }
 
-    const skip = (page - 1) * limit;
+    const skip = Math.max(0, (page - 1) * limit);
 
     const publishedBooks = await findAll({
         model: Book,
         filter: { _id: { $in: publisher.booksPublished } },
         skip,
-        limit
+        limit,
+        populate: "genre"
     });
-
-    const totalPages = Math.ceil(publisher.booksPublished.length / limit) || 0;
-    const totalBooks = publisher.booksPublished.length || 0;
 
     return successResponse({
         res,
@@ -73,26 +89,34 @@ export const getPublisherOrders = asyncHandler(async (req, res, next) => {
     let { page, limit } = req.query;
     const user = req.user;
 
+    page = Number(page) || 1;
+    limit = Number(limit) || 10;
+    page = Math.max(page, 1);
+    limit = Math.max(limit, 1);
+
     if (user.role === roleEnum.publisher && user.id !== publisherId) {
         return next(new AppError("You can only view your own orders", 403));
     }
 
     const total = await PublisherOrder.countDocuments({ publisher: publisherId });
-    const totalPages = Math.ceil(total / limit) || 0;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
 
-    if (totalPages < page) {
-        page = totalPages;
+    if (totalPages > 0) {
+        page = Math.min(page, totalPages);
+    } else {
+        page = 1;
     }
 
-    const skip = (page - 1) * limit;
+    const skip = Math.max(0, (page - 1) * limit);
 
-    const publisherOrders = await findAll({
-        model: PublisherOrder,
-        filter: { publisher: publisherId },
-        skip,
-        limit: limit,
-        sort: { createdAt: -1 }
-    });
+    const publisherOrders = await PublisherOrder.find({ publisher: publisherId })
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 })
+        .populate({
+            path: "items.book",
+            select: "name Edition"   // return only the book name
+        });
 
     return successResponse({
         res,
@@ -133,7 +157,7 @@ export const updatePublisherOrder = asyncHandler(async (req, res, next) => {
         }
 
         let hasUpdated = false;
-        
+
         publisherOrder.items = publisherOrder.items.map((item) => {
             if (item.book.toString() === bookId && (deliveryStatus !== item.deliveryStatus || paymentStatus !== item.paymentStatus)) {
                 hasUpdated = true;
@@ -179,6 +203,7 @@ export const updatePublisherOrder = asyncHandler(async (req, res, next) => {
 
         const book = await Book.findById(bookId).session(session);
 
+        handleNotificationUpdates(mainOrder, paymentStatus, deliveryStatus)
 
         let textUpdate = "";
         let htmlUpdate = "";
@@ -275,3 +300,56 @@ export const updatePublisherOrder = asyncHandler(async (req, res, next) => {
         return next(error);
     }
 });
+
+
+function handleNotificationUpdates(order, paymentStatus, deliveryStatus) {
+    const d = deliveryStatus;
+    const p = paymentStatus;
+    // -------------------------------
+    // PAYMENT STATUS HANDLING
+    // -------------------------------
+    switch (p) {
+        case paymentStatus.COMPLETED:
+            notifyPaymentSuccess(order);
+            break;
+
+        case paymentStatus.FAILED:
+            notifyPaymentFailed(order);
+            break;
+
+        case paymentStatus.REFUNDED:
+            notifyPaymentRefunded(order);
+            break;
+
+        case paymentStatus.EXPIRED:
+            notifyOrderCancelled(order);
+            break;
+    }
+
+    // -------------------------------
+    // DELIVERY STATUS HANDLING
+    // -------------------------------
+    switch (d) {
+        case deliveryStatus.PENDING:
+            break;
+
+        case deliveryStatus.PROCESSING:
+            notifyOrderProcessing(order);
+            break;
+
+        case deliveryStatus.SHIPPED:
+            notifyOrderShipped(order);
+            break;
+
+        case deliveryStatus.IN_TRANSIT:
+            notifyOrderShipped(order); // same notification for “moving”
+            break;
+
+        case deliveryStatus.DELIVERED:
+            notifyOrderDelivered(order);
+
+        case deliveryStatus.RETURNED:
+            notifyOrderCancelled(order);
+            break;
+    }
+}

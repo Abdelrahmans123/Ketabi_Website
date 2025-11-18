@@ -69,7 +69,10 @@ export const createSchema = Joi.object({
         .messages({
             'any.only': 'Recommended age must be one of the allowed values: kids, adults, or all.',
             'string.base': 'Recommended age must be a string.'
-        })
+        }),
+    imageUrl: Joi.string().uri().optional().messages({
+        "string.uri": "Image must be a valid URL",
+    }),
 });
 
 export const getBookByIdSchema = Joi.object({
@@ -101,6 +104,24 @@ export const updateSchema = Joi.object({
     Edition: Joi.string().max(50).optional().messages({
         "string.max": "Edition must be at most 50 characters",
     }),
+    genre_id: Joi.string().min(2).max(50).optional().messages({
+        "string.min": "Genre ID must be at least 2 characters",
+        "string.max": "Genre ID must be at most 50 characters",
+    }),
+    bookLanguage: Joi.string()
+        .optional()
+        .valid("arabic", "english")
+        .messages({
+            'any.only': 'Book language must be one of the allowed values: arabic, english.',
+            'string.base': 'Book language must be a string.'
+        }),
+    recommendedAge: Joi.string()
+        .optional()
+        .valid("kids", "adults", "all")
+        .messages({
+            'any.only': 'Recommended age must be one of the allowed values: kids, adults, or all.',
+            'string.base': 'Recommended age must be a string.'
+        }),
     categoryName: Joi.string().min(2).max(50).optional().messages({
         "string.min": "Category name must be at least 2 characters",
         "string.max": "Category name must be at most 50 characters",
@@ -128,5 +149,8 @@ export const updateSchema = Joi.object({
     }),
     status: Joi.string().valid("in stock", "out of stock").optional().messages({
         "any.only": "Status must be either 'in stock' or 'out of stock'",
+    }),
+    imageUrl: Joi.string().uri().optional().messages({
+        "string.uri": "Image must be a valid URL",
     }),
 });

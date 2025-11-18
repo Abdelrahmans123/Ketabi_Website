@@ -12,6 +12,12 @@ import {
     findOneAndUpdate,
     remove,
 } from "../models/services/db.js";
+import { invalidateCache } from "../middlewares/cach.js";
+
+const invalidateBookCache = async (bookId) => {
+    if (!bookId) return;
+    await invalidateCache([`Get-Book:id=${bookId}`]);
+};
 
 export const createReview = asyncHandler(async (req, res, next) => {
     const userId = req.user._id;
@@ -27,6 +33,11 @@ export const createReview = asyncHandler(async (req, res, next) => {
     const bookExists = await Book.exists({ _id: book });
     if (!bookExists) throw new AppError("Book not found", 404);
 
+    const alreadyReviewed = await Review.exists({ user: userId, book });
+    if (alreadyReviewed) {
+        throw new AppError("You already reviewed this book. You can edit your review instead.", 409);
+    }
+
     const review = await Review.create({
         user: userId,
         book,
@@ -34,6 +45,7 @@ export const createReview = asyncHandler(async (req, res, next) => {
         title,
         body,
     });
+    await invalidateBookCache(book);
     return successResponse({
         res,
         statusCode: 201,
@@ -120,6 +132,7 @@ export const updateReview = asyncHandler(async (req, res) => {
         query: { _id: id },
         data: updates,
     });
+    await invalidateBookCache(current.book);
 
     return successResponse({
         res,
@@ -140,6 +153,7 @@ export const deleteReview = asyncHandler(async (req, res) => {
     if (!isOwner) throw new AppError("Forbidden", 403);
 
     await remove({ model: Review, query: { _id: id } });
+    await invalidateBookCache(current.book);
     return successResponse({ res, statusCode: 204, message: "Review deleted" });
 });
 

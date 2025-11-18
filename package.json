@@ -22,6 +22,7 @@
         "@aws-sdk/client-s3": "^3.908.0",
         "@aws-sdk/lib-storage": "^3.908.0",
         "@aws-sdk/s3-request-presigner": "^3.916.0",
+         "@google/genai": "^1.28.0",
         "@google/generative-ai": "^0.24.1",
         "axios": "^1.13.1",
         "bcryptjs": "^3.0.2",

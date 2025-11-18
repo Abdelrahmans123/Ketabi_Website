@@ -46,7 +46,6 @@ const userSchema = new mongoose.Schema(
         confirmEmail: Date,
         confirmEmailOtp: {
             type: String,
-            required: true,
         },
         confirmEmailOtpExpires: Date,
         resetPasswordOtp: {
@@ -91,7 +90,19 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
-        wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Book" }],
+        wishlist: [
+            {
+                book: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: "Book",
+                },
+                addedDate: {
+                    type: Date,
+                    default: Date.now,
+                },
+            },
+        ],
+
         refreshToken: {
             type: String,
             default: null,

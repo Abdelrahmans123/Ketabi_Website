@@ -40,6 +40,7 @@ const BookSchema = new mongoose.Schema(
         },
         discount: {
             type: Number,
+            default: 0
         },
         cost: {
             type: Number,

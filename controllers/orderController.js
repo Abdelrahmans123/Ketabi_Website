@@ -16,6 +16,8 @@ import Coupon from "../models/Coupon.js";
 import User from "../models/User.js";
 import Cart from "../models/Cart.js";
 import { successResponse } from "../utils/successResponse.js";
+import { processPaymobPayment } from "../config/paymobPayment.js";
+import { notifyOrderCancelled, notifyGiftReceived, notifyOrderConfirmed, notifyOrderDelivered, notifyOrderProcessing, notifyOrderShipped, notifyPaymentFailed, notifyPaymentRefunded, notifyPaymentSuccess } from "../services/OrderNotification.js";
 // items (book, quantity, type), shipping address, paymentMethod, isGift, receipient email, personalizedMessage, coupon
 
 async function getCouponData(couponName) {
@@ -42,7 +44,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     let totalPrice = 0;
     const {
         items,
-        shippingAddress = {phoneNumber: req.user.phone},
+        shippingAddress = { phoneNumber: 'No Phone Number' },
         paymentMethod,
         isGift,
         recipientEmail = req.user.email,
@@ -53,10 +55,6 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     const userId = req.user.id;
     const userEmail = req.user.email;
     const userName = req.user.name;
-
-    if (shippingAddress) {
-        shippingAddress.phoneNumber = shippingAddress.phoneNumber || req.user.phone;
-    }
 
     // Validate coupon
     const couponData = await getCouponData(coupon);
@@ -199,7 +197,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
         coupon: couponData.code,
         discountApplied: couponDiscountPercentage,
         finalPrice,
-        shippingAddress,
+        shippingAddress: shippingAddress,
         paymentMethod,
         isGift,
         recipientEmail,
@@ -210,13 +208,38 @@ export const createOrder = asyncHandler(async (req, res, next) => {
     await order.save({ session });
     await session.commitTransaction();
     session.endSession();
-
+    notifyOrderConfirmed(order);
     let payment;
+
     try {
-        // Create Stripe payment intent
-        payment = await processPayment(order);
-        order.transactionId = payment.id;
-        await order.save();
+        if (paymentMethod === paymentMethods.STRIPE) {
+            payment = await processPayment(order);
+            order.transactionId = payment.id;
+            await order.save();
+
+            return res.status(201).json({
+                message: 'Order created, awaiting payment confirmation',
+                data: order,
+                client_secret: payment.client_secret,
+                payment_method: 'Stripe'
+            });
+        } else if (paymentMethod === paymentMethods.Paymob) {
+            payment = await processPaymobPayment(order);
+            order.transactionId = payment.id;
+            await order.save();
+
+            return res.status(201).json({
+                message: 'Order created, awaiting payment confirmation',
+                data: order,
+                iframe_url: payment.iframe_url,
+                payment_token: payment.payment_token,
+                payment_method: 'Paymob'
+            });
+        } else {
+            notifyPaymentFailed(order, 'Invalid payment method');
+            return next(new AppError('Invalid payment method', 400));
+        }
+
     } catch (error) {
         for (const item of order.items) {
             if (item.type === itemType.PHYSICAL) {
@@ -228,19 +251,13 @@ export const createOrder = asyncHandler(async (req, res, next) => {
         }
         order.paymentStatus = paymentStatus.FAILED;
         await order.save();
+        notifyPaymentFailed(order, 'Payment failed')
         return next(
             new AppError(
-                "Payment failed. Try again.", 502
+                `Payment failed. Try again. ${error}`, 502
             )
         );
     }
-
-    // Return client secret to frontend
-    res.status(201).json({
-        message: "Order created, awaiting payment confirmation",
-        data: order,
-        client_secret: payment.client_secret,
-    });
 });
 
 export const getOrdersAdmin = asyncHandler(async (req, res, next) => {
@@ -292,42 +309,79 @@ export const getOrdersAdmin = asyncHandler(async (req, res, next) => {
     });
 
 });
-
 export const getOrderHistory = asyncHandler(async (req, res, next) => {
-    const { user, page = 1, limit = 5 } = req.query;
+    const userId = req.user.id || req.user._id;
 
-    if (user !== req.user.id) {
-        const error = new AppError("Nothing to show here", 404);
-        return next(error);
+    if (!userId) {
+        return next(new AppError('User ID not found in token', 401));
     }
 
-    // Pagination logic
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const { page = 1, limit = 5 } = req.query;
 
-    const orders = await Order.find({ user }).skip(skip).limit(parseInt(limit));
-    const total = await Order.countDocuments(user);
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 5));
 
-    if (!orders || orders.length === 0) {
-        return successResponse({
-            res,
-            statusCode: 200,
-            message: "No orders Found",
-            data: [],
+    // Pagination
+    const skip = (pageNum - 1) * limitNum;
+
+    try {
+        const orders = await Order.find({ user: userId })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limitNum)
+            .populate('items.book', 'name author price discount pdf cover avgRating ratingsCount')
+            .lean();
+
+        const total = await Order.countDocuments({ user: userId });
+
+        if (!orders || orders.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'No orders found',
+                data: {
+                    orders: [],
+                    pagination: {
+                        total: 0,
+                        page: pageNum,
+                        limit: limitNum,
+                        pages: 0,
+                    },
+                },
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Orders retrieved successfully',
+            data: {
+                orders: orders,
+                pagination: {
+                    total,
+                    page: pageNum,
+                    limit: limitNum,
+                    pages: Math.ceil(total / limitNum),
+                },
+            },
         });
-    }
 
-    return successResponse({
+    } catch (error) {
+        return next(new AppError('Failed to fetch orders: ' + error.message, 500));
+    }
+});
+
+export const getSingleOrder = asyncHandler(async (req, res, next) => {
+    const userId = req.user.id;
+    const { orderId } = req.params;
+
+    const order = await Order.findOne({ orderNumber: orderId, user: userId });
+
+    if (!order) {
+        return res.status(404).json({ message: "Order not found" });
+    }
+    
+    return successResponse ({
         res,
         statusCode: 200,
-        message: "Orders retrieved successfully",
-        data: {
-            orders: orders,
-            pagination: {
-                total,
-                page: parseInt(page),
-                pages: Math.ceil(total / limit),
-            },
-        },
+        data: order
     });
-
 })

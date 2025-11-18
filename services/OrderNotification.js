@@ -3,7 +3,7 @@ import { notificationType } from "../utils/notificationTypeEnum.js";
 import asyncHandler from "../utils/asyncHandler.js";
 
 
-export const notifyOrderConfirmed = asyncHandler(async (order) => {
+export const notifyOrderConfirmed = async (order) => {
     const itemCount = order.items.length;
     const bookNames = order.items
         .slice(0, 3)
@@ -32,10 +32,10 @@ export const notifyOrderConfirmed = asyncHandler(async (order) => {
     console.log(
         `Order confirmed notification sent for order: ${order.orderNumber}`
     );
-});
+};
 
 
-export const notifyPaymentSuccess = asyncHandler(async (order) => {
+export const notifyPaymentSuccess = async (order) => {
     const itemCount = order.items.length;
 
     await sendNotification({
@@ -56,11 +56,10 @@ export const notifyPaymentSuccess = asyncHandler(async (order) => {
     console.log(
         `Payment success notification sent for order: ${order.orderNumber}`
     );
-});
+};
 
 
-export const notifyPaymentFailed = asyncHandler(
-    async (order, reason = "Unknown") => {
+export const notifyPaymentFailed = async (order, reason = "Unknown") => {
         await sendNotification({
             userId: order.user,
             type: notificationType.PAYMENT_FAILED,
@@ -78,10 +77,9 @@ export const notifyPaymentFailed = asyncHandler(
         console.log(
             `Payment failed notification sent for order: ${order.orderNumber}`
         );
-    }
-);
+    };
 
-export const notifyOrderProcessing = asyncHandler(async (order) => {
+export const notifyOrderProcessing = async (order) => {
     await sendNotification({
         userId: order.user,
         type: notificationType.ORDER_PROCESSING,
@@ -98,12 +96,11 @@ export const notifyOrderProcessing = asyncHandler(async (order) => {
     console.log(
         `Order processing notification sent for order: ${order.orderNumber}`
     );
-});
+};
 
-export const notifyOrderShipped = asyncHandler(
-    async (order, trackingNumber = null) => {
-        const hasPhysicalItems = order.items.some(
-            (item) => item.type === "physical"
+export const notifyOrderShipped = async (order, trackingNumber = null) => {
+    const hasPhysicalItems = order.items.some(
+        (item) => item.type === "physical"
         );
         if (!hasPhysicalItems) {
             return;
@@ -129,11 +126,10 @@ export const notifyOrderShipped = asyncHandler(
         console.log(
             `Order shipped notification sent for order: ${order.orderNumber}`
         );
-    }
-);
+    };
 
 
-export const notifyOrderDelivered = asyncHandler(async (order) => {
+export const notifyOrderDelivered = async (order) => {
     await sendNotification({
         userId: order.user,
         type: notificationType.ORDER_DELIVERED,
@@ -151,12 +147,11 @@ export const notifyOrderDelivered = asyncHandler(async (order) => {
     console.log(
         `Order delivered notification sent for order: ${order.orderNumber}`
     );
-});
+};
 
 
-export const notifyOrderCancelled = asyncHandler(
-    async (order, reason = "User request") => {
-        await sendNotification({
+export const notifyOrderCancelled = async (order, reason = "User request") => {
+    await sendNotification({
             userId: order.user,
             type: notificationType.ORDER_CANCELLED,
             title: "Order Cancelled",
@@ -182,10 +177,9 @@ export const notifyOrderCancelled = asyncHandler(
         console.log(
             `Order cancelled notification sent for order: ${order.orderNumber}`
         );
-    }
-);
+    };
 
-export const notifyPaymentRefunded = asyncHandler(async (order) => {
+export const notifyPaymentRefunded = async (order) => {
     await sendNotification({
         userId: order.user,
         type: notificationType.PAYMENT_REFUNDED,
@@ -202,12 +196,11 @@ export const notifyPaymentRefunded = asyncHandler(async (order) => {
     });
 
     console.log(`Refund notification sent for order: ${order.orderNumber}`);
-});
+};
 
 
-export const notifyGiftReceived = asyncHandler(
-    async (recipientUserId, order) => {
-        const itemCount = order.items.length;
+export const notifyGiftReceived = async (recipientUserId, order) => {
+    const itemCount = order.items.length;
         const bookNames = order.items
             .slice(0, 3)
             .map((item) => item.book?.name || "Book")
@@ -239,8 +232,7 @@ export const notifyGiftReceived = asyncHandler(
         console.log(
             `Gift received notification sent for order: ${order.orderNumber}`
         );
-    }
-);
+    };
 
 
 function calculateEstimatedDelivery(minDays = 3, maxDays = 5) {

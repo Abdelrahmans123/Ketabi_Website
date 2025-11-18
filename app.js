@@ -1,5 +1,5 @@
 import express from "express";
-
+import { warmCache } from "./utils/warmCache.js";
 import authRoutes from "./routes/auth.js";
 import genreRoutes from "./routes/genre.js";
 import bookRouter from "./routes/book.js";
@@ -18,7 +18,8 @@ import publisherRoutes from "./routes/publisher.js";
 import reviewRoutes from "./routes/review.js";
 import stripeRouter from "./controllers/webhookController.js";
 import adminRefundRoutes from "./routes/adminRefund.js";
-import ragChatbot from "./chatbot/gemini-rag.js";
+import chatbotRoutes from "./routes/chatbot.routes.js";
+import adminRoutes from "./routes/admin.js";
 import helmet from "helmet";
 import {
     cleanupOldCartsJob,
@@ -59,17 +60,9 @@ const bootstrap = async () => {
     app.use("/api/reviews", reviewRoutes);
     app.use("/api/admin/refunds", adminRefundRoutes);
     app.use("/api/admin/sales", salesRouter);
+    app.use("/api/chatbot", chatbotRoutes);
+    app.use("/api/admin", adminRoutes);
     swaggerDocs(app);
-    app.post("/api/chat", async (req, res) => {
-        const { message } = req.body;
-
-        const result = await ragChatbot.chat(message);
-
-        res.json({
-            response: result.response,
-            books: result.books,
-        });
-    });
     // *---Error Handlers---*
     app.all("/{*dummy}", notFoundHandler);
     app.use(errorHandler);
@@ -81,6 +74,9 @@ const bootstrap = async () => {
         inactiveUserReminderJob();
         cleanupOldCartsJob();
         orderCleanupJob();
+        setTimeout(() => {
+            warmCache().catch(console.error);
+        }, 1000);
     });
     initializeIO(server);
 };

@@ -6,11 +6,12 @@ import {
 } from "../../services/CartReminder.js";
 import AppError from "../../utils/AppError.js";
 import asyncHandler from "../../utils/asyncHandler.js";
-import { sendMessage, registerEvents } from "./events.js";
+import { sendMessage, registerEvents, handleTyping } from "./events.js";
 
 export const registerSocket = (socket, io) => {
     registerEvents(socket);
     sendMessage(socket, io);
+    handleTyping(socket, io);
     initCartReminderScheduler();
     initCartReminderCleanup();
 };

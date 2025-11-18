@@ -121,6 +121,9 @@ import {
     deleteBook,
     downloadBook,
     getBooksByCategory,
+    getFilters,
+    searchBooks,
+    autocompleteSuggestions
 } from "../controllers/BooksController.js";
 import { authenticate } from "../middlewares/auth.js";
 import { authorize } from "../middlewares/authorization.js";
@@ -163,6 +166,7 @@ router.put(
     authenticate,
     authorize(roleEnum.admin, roleEnum.publisher),
     paramValidate(idParameterValidate),
+    upload.single("pdf"),
     validate(updateSchema),
     updateBook
 );
@@ -180,5 +184,11 @@ router.get(
     paramValidate(idParameterValidate),
     downloadBook
 );
+
+router.get("/", cacheMiddleware("books", { ttl: 600 }), getBooks); // 10 min
+router.get("/filters", cacheMiddleware("filters", { ttl: 1800 }), getFilters); // 30 min
+router.get("/search", cacheMiddleware("search", { ttl: 300 }), searchBooks); // 5 min
+router.get("/search/autocomplete", autocompleteSuggestions);
+
 router.get("/:category", cacheMiddleware("category"), getBooksByCategory);
 export default router;

@@ -157,6 +157,8 @@ import {
     addToWishlist,
     removeFromWishlist,
     getWishlist,
+    sendResponse,
+    getResponses,
 } from "../controllers/ProfileController.js";
 import { authenticate } from "../middlewares/auth.js";  
 import { updateProfileSchema } from "../validations/updateprofile.js";
@@ -166,11 +168,12 @@ const router = express.Router();
 
 router.get("/me", authenticate, getProfile);
 router.put("/update", authenticate, updateProfile);
-router.get("/library", authenticate,validate(updateProfileSchema), getLibrary);
+router.get("/library", authenticate, getLibrary);
 
 // Wishlist routes
 router.get("/wishlist", authenticate, getWishlist);
 router.post("/wishlist", authenticate, addToWishlist);
 router.delete("/wishlist/:bookId", authenticate, removeFromWishlist);
-
+router.post("/responses", authenticate, sendResponse);
+router.get("/responses", authenticate, getResponses);
 export default router;

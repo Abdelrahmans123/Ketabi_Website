@@ -7,10 +7,11 @@ import Coupon from "../models/Coupon.js";
 import { sendEmail } from "../utils/sendEmail.js";
 import { deliveryStatus, itemType, orderStatus, paymentStatus } from "../utils/orderEnums.js";
 import mongoose from "mongoose";
-import { findOneAndUpdate } from "../models/services/db.js";
+import { findOne, findOneAndUpdate } from "../models/services/db.js";
 import PublisherOrder from "../models/publisherOrder.js";
 import Sale from "../models/Sale.js";
 import RefundRequest from "../models/refundRequests.js";
+import { notifyOrderCancelled, notifyGiftReceived, notifyOrderConfirmed, notifyOrderDelivered, notifyOrderProcessing, notifyOrderShipped, notifyPaymentFailed, notifyPaymentRefunded, notifyPaymentSuccess } from "../services/OrderNotification.js";
 
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -61,7 +62,7 @@ router.post(
                         order.paymentStatus = paymentStatus.FAILED;
                         order.orderStatus = orderStatus.CANCELLED;
                         await order.save();
-
+                        notifyOrderCancelled(order, 'Payment Failed or Canceled')
                         await sendEmail({
                             to: order.userEmail,
                             subject: "❌ Payment Failed — Order Canceled",
@@ -103,6 +104,7 @@ async function handleSuccessfulPayment(order, paymentIntent) {
 
     // Prevent processing expired or already-paid orders
     if (order.paymentStatus === paymentStatus.EXPIRED) {
+        notifyOrderCancelled(order, 'Order expired before you paid');
         await RefundRequest.create({
             order: order._id,
             user: order.user,
@@ -143,6 +145,8 @@ async function handleSuccessfulPayment(order, paymentIntent) {
         return;
     }
 
+    notifyPaymentSuccess(order);
+    notifyOrderProcessing(order);
     const session = await mongoose.startSession();
     try {
         await session.withTransaction(async () => {
@@ -255,12 +259,14 @@ async function handleSuccessfulPayment(order, paymentIntent) {
     let recipientEmail = buyerEmail;
 
     if (order.isGift && order.recipientEmail) {
+        const giftUser = findOne({model:User, query: {email: order.recipientEmail}});
+        notifyGiftReceived(giftUser._id, order);
         recipientEmail = order.recipientEmail;
         recipientName = order.recipientName || "Gift Recipient";
         order.userName = recipientName;
         order.userEmail = recipientEmail;
     }
-
+    
     // 
     // Email to buyer
     sendEmail({

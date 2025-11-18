@@ -111,7 +111,6 @@ export const getAllOrdersSchema = Joi.object({
 });
 
 export const getUserOrderSchema = Joi.object({
-  user: Joi.string().regex(/^[0-9a-fA-F]{24}$/).required().messages({ 'string.pattern.base': 'Invalid User ID', }),
   page: Joi.number().integer().min(1).default(1).messages({'number.min': 'Page must be at least 1','number.integer': 'Page must be an integer',}),
   limit: Joi.number().integer().min(1).max(100).default(10).messages({
       'number.min': 'Limit must be at least 1',

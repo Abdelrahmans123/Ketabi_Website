@@ -5,6 +5,24 @@ import { successResponse } from "../utils/successResponse.js";
 import { itemType } from "../utils/orderEnums.js";
 import { create, findById, findOne } from "../models/services/db.js";
 import Book from "../models/Book.js";
+import path from "path";
+
+export const setCart = asyncHandler(async (req, res, next) => {
+    let cart = await findOne({ model: Cart, query: { user: req.user._id } });
+    if (!cart) {
+        cart = new Cart({ user: req.user._id, items: req.body });
+        await create({ model: Cart, data: cart });
+    } else {
+        cart.items = req.body;
+        await cart.save();
+    }
+    return successResponse({
+        res,
+        statusCode: 200,
+        message: "Cart Was Set successfully"
+    });
+
+})
 
 export const getCart = asyncHandler(async (req, res, next) => {
     let cart = await findOne({
@@ -12,24 +30,33 @@ export const getCart = asyncHandler(async (req, res, next) => {
         query: { user: req.user._id },
         populate: {
             path: "items.book",
-            select: "title author price discount stock",
-        },
+            select: "name price stock discount image",
+        }
     });
+
     if (!cart) {
-        const cart = new Cart({ user: req.user._id, items: [] });
+        cart = new Cart({ user: req.user._id, items: [] });
         await create({ model: Cart, data: cart });
-        return successResponse({
-            res,
-            statusCode: 200,
-            message: "New cart was created and retrieved successfully",
-            data: cart,
-        });
     }
+
+    const cleanCart = {
+        items: cart.items.map((item) => ({
+            _id: item.book._id,
+            name: item.book.name,
+            price: item.book.price,
+            stock: item.book.stock,
+            discount: item.book.discount,
+            image: item.book.image,
+            quantity: item.quantity,
+            type: item.type,
+        })),
+        total: cart.totalPrice,
+    };
     return successResponse({
         res,
         statusCode: 200,
         message: "Cart retrieved successfully",
-        data: cart,
+        data: cleanCart,
     });
 });
 
@@ -96,7 +123,6 @@ export const addTocart = asyncHandler(async (req, res, next) => {
         res,
         statusCode: 200,
         message: "Item added to cart successfully",
-        data: cart,
     });
 });
 
@@ -122,7 +148,7 @@ export const updateCart = asyncHandler(async (req, res, next) => {
     }
 
     const bookDoc = await findById({ model: Book, id: book });
-    
+
     if (!bookDoc) {
         const error = new AppError("Book not found", 404);
         return next(error);
